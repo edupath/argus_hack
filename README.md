@@ -1,3 +1,4 @@
+![CI](https://github.com/edupath/argus_hack/actions/workflows/ci.yml/badge.svg)
 # Title
 Agentic Educational Advisor
 
