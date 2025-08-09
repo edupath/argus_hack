@@ -37,6 +37,30 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Codex CLI is running in Full Auto; prefer small, incremental commits.
 - See AGENTS.md for repo conventions.
 
+## FastAPI Setup
+- Prereqs: Python 3.11+
+- Install deps and create venv:
+  - `make install`
+- Run the service (reload enabled):
+  - `make run`
+- Test the health endpoint:
+  - `curl http://127.0.0.1:8000/`
+- Run tests (requires `pytest` installed in your venv):
+  - `make test`
+
+Project layout:
+
+```
+src/
+  main.py            # FastAPI app
+  models/            # Pydantic models (StudentProfile, ProgramMatch)
+  services/          # placeholders: requirements_lookup, assessment, dossier_builder
+tests/
+  test_main.py       # basic GET "/" test
+requirements.txt     # runtime dependencies
+Makefile             # install/run/test helpers
+```
+
 # Next Steps (high-value tasks)
 1) Scaffold a minimal service with a chat loop and an in-memory student profile.
 2) Implement a requirements adapter interface with one mock provider.
@@ -51,6 +75,8 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Python: `python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt`
 - Node: `npm install && npm run dev`
 - Tests: `pytest -q` or `npm test`
+
+Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
