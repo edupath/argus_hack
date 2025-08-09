@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import json
 
 from .models import StudentProfile, ProgramMatch
+from .services.assessments import logic5
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
@@ -182,7 +183,11 @@ def chat(
         ts = datetime.now(timezone.utc).isoformat()
         short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
         append_audit(f"{ts} user={req.user_id} next=question parsed={short}")
-        resp = {"reply": q, "next_questions": [q]}
+        # Optional logic5 trigger hint
+        reply_text = q
+        if any(k in req.message.lower() for k in ("logic5", "logic test", "logic assessment", "start logic5")):
+            reply_text += "\n\nYou can take the Logic5 micro-assessment: GET /assessments/logic5 then POST answers to /assessments/logic5/score (or say 'start logic5')."
+        resp = {"reply": reply_text, "next_questions": [q]}
         if debug_on:
             resp["reasoning"] = reasoning
         return resp
@@ -200,7 +205,10 @@ def chat(
     ts = datetime.now(timezone.utc).isoformat()
     short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
     append_audit(f"{ts} user={req.user_id} next=done parsed={short}")
-    resp = {"reply": summary, "matches": [m.model_dump() for m in matches]}
+    reply_text = summary
+    if any(k in req.message.lower() for k in ("logic5", "logic test", "logic assessment", "start logic5")):
+        reply_text += "\n\nYou can take the Logic5 micro-assessment: GET /assessments/logic5 then POST answers to /assessments/logic5/score (or say 'start logic5')."
+    resp = {"reply": reply_text, "matches": [m.model_dump() for m in matches]}
     if debug_on:
         resp["reasoning"] = reasoning
     return resp
@@ -245,3 +253,20 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+@app.get("/assessments/logic5")
+def logic5_start():
+    qs = logic5.questions()
+    public = [{"id": q["id"], "question": q["question"], "choices": q["choices"]} for q in qs]
+    return {"assessment": "logic5", "questions": public}
+
+
+class Logic5ScoreRequest(BaseModel):
+    answers: List[Dict[str, int]]
+
+
+@app.post("/assessments/logic5/score")
+def logic5_score(payload: Logic5ScoreRequest):
+    result = logic5.score(payload.answers)
+    return result
