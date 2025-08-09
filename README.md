@@ -89,5 +89,9 @@ Makefile             # install/run/test helpers
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
+# Demo Seed
+- Create a fully-populated demo flow (idempotent):
+  - `curl -X POST http://localhost:8000/demo/seed`
+
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
