@@ -4,7 +4,7 @@ install:
 	pip install -r requirements.txt
 
 test:
-	PYTHONPATH=src .venv/bin/pytest -q
+	PYTHONPATH=. .venv/bin/pytest -q
 
 run:
 	PYTHONPATH=src .venv/bin/python -m uvicorn src.main:app --reload
