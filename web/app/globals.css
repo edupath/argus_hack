@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+body {
+  background: radial-gradient(1200px 600px at 20% -10%, rgba(124,58,237,0.15), transparent 60%),
+              radial-gradient(800px 400px at 80% 0%, rgba(0,229,255,0.12), transparent 60%),
+              #0B0F1A;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(6px);
+}
+
+.btn {
+  @apply transition-all duration-300 ease-out active:scale-[0.98];
+}
+
+.btn-primary {
+  @apply bg-primary text-black hover:shadow-glow hover:-translate-y-[1px];
+}
+
+.btn-secondary {
+  @apply bg-secondary text-white hover:shadow-glow hover:-translate-y-[1px];
+}
+
+.input {
+  @apply bg-black/30 border border-white/10 rounded px-3 py-2 text-white placeholder-white/40 outline-none transition focus:border-primary focus:shadow-glow;
+}
+
