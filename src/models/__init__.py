@@ -1,19 +1,15 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel
+from typing import Optional
 
 
 class StudentProfile(BaseModel):
-    name: str
-    email: str
-    goals: List[str] = Field(default_factory=list)
-    constraints: List[str] = Field(default_factory=list)
-    preferences: List[str] = Field(default_factory=list)
+    name: Optional[str] = None
+    email: Optional[str] = None
+    goals: Optional[str] = None
+    constraints: Optional[str] = None
+    preferences: Optional[str] = None
 
 
 class ProgramMatch(BaseModel):
-    program_id: str
     program_name: str
-    provider: Optional[str] = None
-    score: float
-    rationale: Optional[str] = None
-
+    rationale: str
