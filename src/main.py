@@ -8,9 +8,11 @@ from datetime import datetime, timezone
 import json
 
 from .models import StudentProfile, ProgramMatch
+from .services.assessments import logic5
 from .db import engine, get_session, ensure_column, append_audit
-from .models_db import UserState, Message
+from .models_db import UserState, Message, AssessmentResult
 from sqlmodel import SQLModel, Session, select
+from .services.assessment import Logic5
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -171,6 +173,54 @@ def chat(
     if not debug_on and debug_h is not None and str(debug_h).lower() == "true":
         debug_on = True
 
+    # Handle assessment triggers
+    if "start logic5" in req.message.lower():
+        plugin = Logic5()
+        qs = plugin.questions()
+        lines = ["Logic5 – answer with: answers: q1=A,q2=B,...", "Questions:"]
+        for q in qs:
+            lines.append(f"{q['id']}: {q['prompt']} Choices: {', '.join(q.get('choices', []))}")
+        msg.reasoning = json.dumps({"assessment": "logic5", "action": "start"})
+        session.add(msg)
+        session.commit()
+        return {"reply": "\n".join(lines)}
+
+    if req.message.lower().startswith("answers:"):
+        mapping_text = req.message.split(":", 1)[1]
+        pairs = [p.strip() for p in mapping_text.split(",") if p.strip()]
+        answers: Dict[str, str] = {}
+        for p in pairs:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                answers[k.strip()] = v.strip().upper()
+        plugin = Logic5()
+        res = plugin.score(answers)
+        existing = session.exec(
+            select(AssessmentResult).where(
+                AssessmentResult.user_id == req.user_id,
+                AssessmentResult.assessment_id == plugin.id,
+            )
+        ).first()
+        if existing:
+            existing.score = int(res["score"])  # type: ignore[index]
+            existing.total = int(res["total"])  # type: ignore[index]
+            existing.ts = datetime.now(timezone.utc)
+            session.add(existing)
+        else:
+            session.add(
+                AssessmentResult(
+                    user_id=req.user_id,
+                    assessment_id=plugin.id,
+                    score=int(res["score"]),  # type: ignore[index]
+                    total=int(res["total"])  # type: ignore[index]
+                )
+            )
+        session.commit()
+        msg.reasoning = json.dumps({"assessment": "logic5", "action": "score", "result": res})
+        session.add(msg)
+        session.commit()
+        return {"reply": f"Logic5 result: {res['score']}/{res['total']}", "matches": []}
+
     # If anything missing, ask question
     if missing:
         q = _question_for(missing[0])
@@ -182,7 +232,25 @@ def chat(
         ts = datetime.now(timezone.utc).isoformat()
         short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
         append_audit(f"{ts} user={req.user_id} next=question parsed={short}")
-        resp = {"reply": q, "next_questions": [q]}
+        # Offer Logic5 suggestion if CS/engineering/data goals and no prior result
+        offer_logic = False
+        goals_text = (profile.goals or "").lower()
+        if any(k in goals_text for k in ("cs", "computer", "engineer", "data")):
+            existing = session.exec(
+                select(AssessmentResult).where(
+                    AssessmentResult.user_id == req.user_id,
+                    AssessmentResult.assessment_id == "logic5",
+                )
+            ).first()
+            offer_logic = existing is None
+        addition = (
+            "\n\nOptional check: take the 5-question Logic5 micro-assessment to validate fit. Say 'start logic5' to begin."
+            if offer_logic else ""
+        )
+        # Also add a hint if the user explicitly mentions logic5
+        if any(k in req.message.lower() for k in ("logic5", "logic test", "logic assessment")):
+            addition = addition or "\n\nYou can take the Logic5 micro-assessment: say 'start logic5' to begin."
+        resp = {"reply": q + addition, "next_questions": [q]}
         if debug_on:
             resp["reasoning"] = reasoning
         return resp
@@ -200,7 +268,23 @@ def chat(
     ts = datetime.now(timezone.utc).isoformat()
     short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
     append_audit(f"{ts} user={req.user_id} next=done parsed={short}")
-    resp = {"reply": summary, "matches": [m.model_dump() for m in matches]}
+    offer_logic = False
+    goals_text = (profile.goals or "").lower()
+    if any(k in goals_text for k in ("cs", "computer", "engineer", "data")):
+        existing = session.exec(
+            select(AssessmentResult).where(
+                AssessmentResult.user_id == req.user_id,
+                AssessmentResult.assessment_id == "logic5",
+            )
+        ).first()
+        offer_logic = existing is None
+    addition = (
+        "\n\nOptional check: take the 5-question Logic5 micro-assessment to validate fit. Say 'start logic5' to begin."
+        if offer_logic else ""
+    )
+    if any(k in req.message.lower() for k in ("logic5", "logic test", "logic assessment")):
+        addition = addition or "\n\nYou can take the Logic5 micro-assessment: say 'start logic5' to begin."
+    resp = {"reply": summary + addition, "matches": [m.model_dump() for m in matches]}
     if debug_on:
         resp["reasoning"] = reasoning
     return resp
@@ -245,3 +329,20 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+@app.get("/assessments/logic5/questions")
+def logic5_questions():
+    plugin = Logic5()
+    return {"id": plugin.id, "questions": plugin.questions()}
+
+
+class Logic5ScoreRequest(BaseModel):
+    answers: Dict[str, str]
+
+
+@app.post("/assessments/logic5/score")
+def logic5_score(payload: Logic5ScoreRequest):
+    plugin = Logic5()
+    result = plugin.score(payload.answers)
+    return result

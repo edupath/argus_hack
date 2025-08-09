@@ -19,3 +19,12 @@ class Message(SQLModel, table=True):
     text: str
     ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reasoning: Optional[str] = None
+
+
+class AssessmentResult(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(foreign_key="userstate.id")
+    assessment_id: str
+    score: int
+    total: int
+    ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

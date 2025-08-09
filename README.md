@@ -59,6 +59,20 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Add `?debug=1` to API requests or header `X-Debug: true` to surface per-message reasoning.
 - A compact, single-line audit is appended to `data/audit.log` for each message.
 
+### Requirements Preview
+- Mock adapter supports a few example programs.
+- Preview via API:
+  - `curl -s -X POST http://127.0.0.1:8000/requirements/preview -H 'Content-Type: application/json' -d '{"program_name":"City College — Data Analytics Certificate"}' | jq`
+- During chat, if a known program name appears in a message, the reply suggests: "preview <name>" to see requirements.
+
+### Logic5 Micro-Assessment
+- Questions: `GET /assessments/logic5/questions`
+- Scoring: `POST /assessments/logic5/score` with body `{"answers":{"q1":"A","q2":"D","q3":"A","q4":"D","q5":"A"}}`
+- Chat flow:
+  - Say `start logic5` to receive questions in chat.
+  - Reply with `answers: q1=A,q2=D,q3=A,q4=D,q5=A` to score.
+  - If your goals mention CS/engineering/data and no prior Logic5 result exists, the agent suggests taking it.
+
 Project layout:
 
 ```
