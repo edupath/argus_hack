@@ -59,6 +59,12 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Add `?debug=1` to API requests or header `X-Debug: true` to surface per-message reasoning.
 - A compact, single-line audit is appended to `data/audit.log` for each message.
 
+### Requirements Preview
+- Mock adapter supports a few example programs.
+- Preview via API:
+  - `curl -s -X POST http://127.0.0.1:8000/requirements/preview -H 'Content-Type: application/json' -d '{"program_name":"City College — Data Analytics Certificate"}' | jq`
+- During chat, if a known program name appears in a message, the reply suggests: "preview <name>" to see requirements.
+
 Project layout:
 
 ```
