@@ -9,7 +9,7 @@ import json
 
 from .models import StudentProfile, ProgramMatch
 from .db import engine, get_session, ensure_column, append_audit
-from .models_db import UserState, Message
+from .models_db import UserState, Message, PartnerJob, AssessmentResult
 from sqlmodel import SQLModel, Session, select
 
 @asynccontextmanager
@@ -245,3 +245,64 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+class DemoSeedResponse(BaseModel):
+    user_id: str
+    assessment: Dict[str, int]
+    partner_job_id: int
+    status_url: str
+
+
+@app.post("/demo/seed")
+def demo_seed(session: Session = Depends(get_session)) -> DemoSeedResponse:
+    user_id = "demo1"
+
+    # Ensure tables exist (safety for tests)
+    SQLModel.metadata.create_all(engine)
+
+    # Idempotent: upsert UserState
+    user = session.get(UserState, user_id)
+    if not user:
+        user = UserState(id=user_id)
+    user.goals = "Become a software engineer"
+    user.constraints = "Part-time, budget under $1k"
+    user.preferences = "Online, US-based"
+    session.add(user)
+    session.commit()
+
+    # Idempotent: replace latest assessment result for this user
+    prev_assess = session.exec(select(AssessmentResult).where(AssessmentResult.user_id == user_id)).all()
+    for a in prev_assess:
+        session.delete(a)
+    session.commit()
+    assess = AssessmentResult(user_id=user_id, assessment="logic-5q", score=4, max_score=5)
+    session.add(assess)
+    session.commit()
+
+    # Build payload dossier
+    dossier = {
+        "profile": {
+            "goals": user.goals,
+            "constraints": user.constraints,
+            "preferences": user.preferences,
+        },
+        "assessments": {"logic-5q": {"score": assess.score, "max_score": assess.max_score}},
+    }
+
+    # Idempotent: remove existing PartnerJobs for this user, then enqueue one
+    jobs = session.exec(select(PartnerJob).where(PartnerJob.user_id == user_id)).all()
+    for j in jobs:
+        session.delete(j)
+    session.commit()
+    job = PartnerJob(user_id=user_id, program_name="State University — B.S. Computer Science", payload=json.dumps(dossier, ensure_ascii=False), status="queued")
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    return DemoSeedResponse(
+        user_id=user_id,
+        assessment={"score": assess.score, "total": assess.max_score},
+        partner_job_id=int(job.id or 0),
+        status_url=f"/handoff/status/{int(job.id or 0)}",
+    )
