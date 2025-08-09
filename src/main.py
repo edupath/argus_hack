@@ -1,22 +1,30 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Dict, List, Optional
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+from pathlib import Path
 
 from .models import StudentProfile, ProgramMatch
 from .db import engine, get_session
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
 
-app = FastAPI(title="Agentic Educational Advisor")
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    # Ensure data directory exists and create tables
+    Path("data").mkdir(parents=True, exist_ok=True)
+    SQLModel.metadata.create_all(engine)
+    yield
+
+
+app = FastAPI(title="Agentic Educational Advisor", lifespan=lifespan)
 
 # In-memory conversational state
 STATE: Dict[str, Dict[str, object]] = {}
 
 
-@app.on_event("startup")
-def on_startup() -> None:
-    # Ensure tables exist
-    SQLModel.metadata.create_all(engine)
+# (startup handled by lifespan)
 
 
 @app.get("/")
@@ -142,3 +150,26 @@ def chat(req: ChatRequest, session: Session = Depends(get_session)):
         f"preferences={profile.preferences}."
     )
     return {"reply": summary, "matches": [m.model_dump() for m in matches]}
+
+
+@app.get("/users/{user_id}")
+def get_user(user_id: str, session: Session = Depends(get_session)):
+    user = session.get(UserState, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    msgs = session.exec(
+        select(Message).where(Message.user_id == user_id).order_by(Message.ts.desc())
+    ).all()
+
+    return {
+        "user": {
+            "id": user.id,
+            "goals": user.goals,
+            "constraints": user.constraints,
+            "preferences": user.preferences,
+        },
+        "history": [
+            {"id": m.id, "text": m.text, "ts": m.ts} for m in msgs
+        ],
+    }

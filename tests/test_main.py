@@ -27,7 +27,16 @@ def test_chat_asks_question_when_profile_empty():
 
 def test_chat_returns_matches_after_all_fields():
     user_id = "u_test_2"
-    STATE.pop(user_id, None)  # ensure clean state
+    STATE.pop(user_id, None)  # ensure in-memory clean state
+    # ensure DB clean state
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        for m in msgs:
+            s.delete(m)
+        u = s.get(UserState, user_id)
+        if u:
+            s.delete(u)
+        s.commit()
     # Provide goals
     r1 = client.post("/chat", json={"user_id": user_id, "message": "goals: become a data analyst"})
     assert r1.status_code == 200
@@ -96,3 +105,46 @@ def test_subsequent_messages_update_existing_state():
         assert "online" in (u.preferences or "").lower()
         msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
         assert len(msgs) == 3
+
+
+def test_get_user_404_when_missing():
+    missing_id = "no_such_user"
+    # Ensure clean slate
+    with Session(engine) as s:
+        u = s.get(UserState, missing_id)
+        if u:
+            s.delete(u)
+            s.commit()
+    resp = client.get(f"/users/{missing_id}")
+    assert resp.status_code == 404
+
+
+def test_get_user_returns_profile_and_history_after_chat_flow():
+    user_id = "u_read_1"
+    # cleanup any existing state
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        for m in msgs:
+            s.delete(m)
+        u = s.get(UserState, user_id)
+        if u:
+            s.delete(u)
+        s.commit()
+
+    # Seed via chat flow
+    client.post("/chat", json={"user_id": user_id, "message": "goals: study data analysis"})
+    client.post("/chat", json={"user_id": user_id, "message": "constraints: evenings only, tight budget"})
+    last_msg = "preferences: online, US-based"
+    client.post("/chat", json={"user_id": user_id, "message": last_msg})
+
+    # Read API
+    resp = client.get(f"/users/{user_id}")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["user"]["id"] == user_id
+    assert "goals" in payload["user"] and payload["user"]["goals"] is not None
+    assert "constraints" in payload["user"] and payload["user"]["constraints"] is not None
+    assert "preferences" in payload["user"] and payload["user"]["preferences"] is not None
+    assert isinstance(payload["history"], list) and len(payload["history"]) >= 3
+    # most recent first
+    assert payload["history"][0]["text"] == last_msg
