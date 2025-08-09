@@ -1,11 +1,10 @@
-run:
-	uvicorn src.main:app --reload
-
-test:
-	pytest -q
-
 install:
 	python -m venv .venv && \
 	. .venv/bin/activate && \
 	pip install -r requirements.txt
 
+test:
+	PYTHONPATH=src .venv/bin/pytest -q
+
+run:
+	PYTHONPATH=src .venv/bin/python -m uvicorn src.main:app --reload
