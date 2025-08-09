@@ -55,6 +55,10 @@ This project builds an AI-powered, agentic advisor that guides students from goa
   - Stop the app and run `rm -f data/app.db` (or `rm -rf data/`)
   - Then restart the app to recreate tables
 
+### Debugging
+- Add `?debug=1` to API requests or header `X-Debug: true` to surface per-message reasoning.
+- A compact, single-line audit is appended to `data/audit.log` for each message.
+
 Project layout:
 
 ```

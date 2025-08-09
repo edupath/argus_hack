@@ -18,4 +18,4 @@ class Message(SQLModel, table=True):
     user_id: str = Field(foreign_key="userstate.id")
     text: str
     ts: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
+    reasoning: Optional[str] = None

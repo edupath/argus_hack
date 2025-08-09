@@ -1,12 +1,14 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header, Query
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 from pathlib import Path
+from datetime import datetime, timezone
+import json
 
 from .models import StudentProfile, ProgramMatch
-from .db import engine, get_session
+from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
 
@@ -15,6 +17,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure data directory exists and create tables
     Path("data").mkdir(parents=True, exist_ok=True)
     SQLModel.metadata.create_all(engine)
+    # Tiny migration: add Message.reasoning if missing
+    with engine.begin() as conn:
+        ensure_column(conn, "message", "reasoning", "TEXT")
     yield
 
 
@@ -104,7 +109,12 @@ def _mock_matches(profile: StudentProfile) -> List[ProgramMatch]:
 
 
 @app.post("/chat")
-def chat(req: ChatRequest, session: Session = Depends(get_session)):
+def chat(
+    req: ChatRequest,
+    session: Session = Depends(get_session),
+    debug_q: Optional[str] = Query(default=None, alias="debug"),
+    debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
+):
     # Small in-memory cache of recent history (not source of truth)
     cache = _ensure_user(req.user_id)
     history: List[str] = cache["history"]  # type: ignore[assignment]
@@ -117,7 +127,11 @@ def chat(req: ChatRequest, session: Session = Depends(get_session)):
         session.add(user_state)
         session.commit()
 
-    # Persist incoming message
+    # Ensure migration safety at request time (idempotent)
+    with engine.begin() as conn:
+        ensure_column(conn, "message", "reasoning", "TEXT")
+
+    # Persist incoming message (reasoning to be added later)
     msg = Message(user_id=req.user_id, text=req.message)
     session.add(msg)
     session.commit()
@@ -140,20 +154,65 @@ def chat(req: ChatRequest, session: Session = Depends(get_session)):
 
     # Decide next action
     missing = _missing_fields(profile)
+    # Reasoning capture
+    reasoning: Dict[str, object] = {
+        "parsed": {
+            "goals": profile.goals,
+            "constraints": profile.constraints,
+            "preferences": profile.preferences,
+        },
+        "missing": missing,
+    }
+
+    # Determine debug flag
+    debug_on = False
+    if debug_q is not None and str(debug_q).lower() in ("1", "true"):  # type: ignore[arg-type]
+        debug_on = True
+    if not debug_on and debug_h is not None and str(debug_h).lower() == "true":
+        debug_on = True
+
+    # If anything missing, ask question
     if missing:
         q = _question_for(missing[0])
-        return {"reply": q, "next_questions": [q]}
+        reasoning["next_question"] = q
+        # Store reasoning on message and audit
+        msg.reasoning = json.dumps(reasoning, ensure_ascii=False)
+        session.add(msg)
+        session.commit()
+        ts = datetime.now(timezone.utc).isoformat()
+        short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
+        append_audit(f"{ts} user={req.user_id} next=question parsed={short}")
+        resp = {"reply": q, "next_questions": [q]}
+        if debug_on:
+            resp["reasoning"] = reasoning
+        return resp
 
+    # Otherwise, return matches
     matches = _mock_matches(profile)
+    reasoning["matches_logic"] = "mock top-2 by goal alignment"
     summary = (
         f"Summary: goals={profile.goals}; constraints={profile.constraints}; "
         f"preferences={profile.preferences}."
     )
-    return {"reply": summary, "matches": [m.model_dump() for m in matches]}
+    msg.reasoning = json.dumps(reasoning, ensure_ascii=False)
+    session.add(msg)
+    session.commit()
+    ts = datetime.now(timezone.utc).isoformat()
+    short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
+    append_audit(f"{ts} user={req.user_id} next=done parsed={short}")
+    resp = {"reply": summary, "matches": [m.model_dump() for m in matches]}
+    if debug_on:
+        resp["reasoning"] = reasoning
+    return resp
 
 
 @app.get("/users/{user_id}")
-def get_user(user_id: str, session: Session = Depends(get_session)):
+def get_user(
+    user_id: str,
+    session: Session = Depends(get_session),
+    debug_q: Optional[str] = Query(default=None, alias="debug"),
+    debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
+):
     user = session.get(UserState, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -162,14 +221,27 @@ def get_user(user_id: str, session: Session = Depends(get_session)):
         select(Message).where(Message.user_id == user_id).order_by(Message.ts.desc())
     ).all()
 
-    return {
+    debug_on = False
+    if debug_q is not None and str(debug_q).lower() in ("1", "true"):  # type: ignore[arg-type]
+        debug_on = True
+    if not debug_on and debug_h is not None and str(debug_h).lower() == "true":
+        debug_on = True
+
+    payload = {
         "user": {
             "id": user.id,
             "goals": user.goals,
             "constraints": user.constraints,
             "preferences": user.preferences,
         },
-        "history": [
-            {"id": m.id, "text": m.text, "ts": m.ts} for m in msgs
-        ],
+        "history": [],
     }
+    for m in msgs:
+        item = {"id": m.id, "text": m.text, "ts": m.ts}
+        if debug_on and getattr(m, "reasoning", None):
+            try:
+                item["reasoning"] = json.loads(m.reasoning)  # type: ignore[arg-type]
+            except Exception:
+                item["reasoning"] = m.reasoning
+        payload["history"].append(item)
+    return payload

@@ -3,6 +3,7 @@ from sqlmodel import Session, select, SQLModel
 from src.main import app, STATE
 from src.db import engine
 from src.models_db import UserState, Message
+import json
 
 
 client = TestClient(app)
@@ -148,3 +149,71 @@ def test_get_user_returns_profile_and_history_after_chat_flow():
     assert isinstance(payload["history"], list) and len(payload["history"]) >= 3
     # most recent first
     assert payload["history"][0]["text"] == last_msg
+
+
+def test_chat_debug_includes_reasoning():
+    user_id = "u_debug_1"
+    # clean user state
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        for m in msgs:
+            s.delete(m)
+        u = s.get(UserState, user_id)
+        if u:
+            s.delete(u)
+        s.commit()
+
+    resp = client.post(f"/chat?debug=1", json={"user_id": user_id, "message": "hi"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "reasoning" in data
+    assert "parsed" in data["reasoning"]
+    assert ("missing" in data["reasoning"]) or ("matches_logic" in data["reasoning"])  # type: ignore[operator]
+
+
+def test_message_persists_reasoning():
+    user_id = "u_debug_2"
+    # clean user state
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        for m in msgs:
+            s.delete(m)
+        u = s.get(UserState, user_id)
+        if u:
+            s.delete(u)
+        s.commit()
+
+    client.post("/chat", json={"user_id": user_id, "message": "goals: learn ML"})
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        assert len(msgs) == 1
+        assert msgs[0].reasoning is not None
+        # ensure it's JSON
+        json.loads(msgs[0].reasoning)
+
+
+def test_get_user_history_includes_reasoning_in_debug():
+    user_id = "u_debug_3"
+    # reset
+    with Session(engine) as s:
+        msgs = s.exec(select(Message).where(Message.user_id == user_id)).all()
+        for m in msgs:
+            s.delete(m)
+        u = s.get(UserState, user_id)
+        if u:
+            s.delete(u)
+        s.commit()
+
+    client.post("/chat", json={"user_id": user_id, "message": "goals: web dev"})
+    client.post("/chat", json={"user_id": user_id, "message": "constraints: nights"})
+
+    r_debug = client.get(f"/users/{user_id}?debug=1")
+    assert r_debug.status_code == 200
+    payload = r_debug.json()
+    assert len(payload["history"]) >= 2
+    assert "reasoning" in payload["history"][0]
+
+    r_nodebug = client.get(f"/users/{user_id}")
+    assert r_nodebug.status_code == 200
+    payload2 = r_nodebug.json()
+    assert "reasoning" not in payload2["history"][0]
