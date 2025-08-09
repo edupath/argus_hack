@@ -1,13 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
 from .models import StudentProfile, ProgramMatch
+from .db import engine, get_session
+from .models_db import UserState, Message
+from sqlmodel import SQLModel, Session, select
 
 app = FastAPI(title="Agentic Educational Advisor")
 
 # In-memory conversational state
 STATE: Dict[str, Dict[str, object]] = {}
+
+
+@app.on_event("startup")
+def on_startup() -> None:
+    # Ensure tables exist
+    SQLModel.metadata.create_all(engine)
 
 
 @app.get("/")
@@ -87,14 +96,41 @@ def _mock_matches(profile: StudentProfile) -> List[ProgramMatch]:
 
 
 @app.post("/chat")
-def chat(req: ChatRequest):
-    user = _ensure_user(req.user_id)
-    profile: StudentProfile = user["profile"]  # type: ignore[assignment]
-    history: List[str] = user["history"]  # type: ignore[assignment]
-
+def chat(req: ChatRequest, session: Session = Depends(get_session)):
+    # Small in-memory cache of recent history (not source of truth)
+    cache = _ensure_user(req.user_id)
+    history: List[str] = cache["history"]  # type: ignore[assignment]
     history.append(req.message)
-    _apply_heuristics(profile, req.message)
 
+    # Load or create persistent user state
+    user_state = session.get(UserState, req.user_id)
+    if user_state is None:
+        user_state = UserState(id=req.user_id)
+        session.add(user_state)
+        session.commit()
+
+    # Persist incoming message
+    msg = Message(user_id=req.user_id, text=req.message)
+    session.add(msg)
+    session.commit()
+
+    # Update profile fields via heuristic
+    profile = StudentProfile(
+        goals=user_state.goals,
+        constraints=user_state.constraints,
+        preferences=user_state.preferences,
+    )
+    before = (profile.goals, profile.constraints, profile.preferences)
+    _apply_heuristics(profile, req.message)
+    after = (profile.goals, profile.constraints, profile.preferences)
+    if after != before:
+        user_state.goals = profile.goals
+        user_state.constraints = profile.constraints
+        user_state.preferences = profile.preferences
+        session.add(user_state)
+        session.commit()
+
+    # Decide next action
     missing = _missing_fields(profile)
     if missing:
         q = _question_for(missing[0])

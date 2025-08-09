@@ -48,6 +48,13 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Run tests (requires `pytest` installed in your venv):
   - `make test`
 
+### Persistence (SQLite + SQLModel)
+- Database file: `data/app.db` (created automatically)
+- ORM: SQLModel
+- Reset the DB (dangerous):
+  - Stop the app and run `rm -f data/app.db` (or `rm -rf data/`)
+  - Then restart the app to recreate tables
+
 Project layout:
 
 ```
