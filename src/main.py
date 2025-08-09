@@ -7,10 +7,11 @@ from pathlib import Path
 from datetime import datetime, timezone
 import json
 
-from .models import StudentProfile, ProgramMatch
+from .models import StudentProfile, ProgramMatch, ProgramRequirements
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
+from .services.requirements_adapter import get_provider
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -245,3 +246,17 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+@app.get("/requirements/{program_id}")
+def preview_requirements(
+    program_id: str,
+    provider: str = Query(default="mock"),
+):
+    try:
+        prov = get_provider(provider)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    reqs = prov.fetch(program_id)
+    return reqs.model_dump()
