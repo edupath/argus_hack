@@ -7,8 +7,21 @@ from typing import Dict, Optional, Tuple
 FieldResult = Dict[str, object]
 
 
-def _extract_with_prefix(text: str, field: str) -> Optional[str]:
-    pattern = re.compile(rf"\b{re.escape(field)}s?:\s*(.+)", re.IGNORECASE)
+FIELDS = {
+    "goals": ("goal", "goals"),
+    "constraints": ("constraint", "constraints"),
+    "preferences": ("preference", "preferences"),
+}
+
+
+def _extract_with_prefix(text: str, canonical: str) -> Optional[str]:
+    # Capture non-greedily until the next known prefix or end of string
+    alts = FIELDS[canonical]
+    next_prefix = r"(?:goals?:|constraints?:|preferences?:)"
+    pattern = re.compile(
+        rf"\b(?:{alts[0]}|{alts[1]}):\s*(.+?)(?=\s+{next_prefix}|$)",
+        re.IGNORECASE | re.DOTALL,
+    )
     m = pattern.search(text)
     if m:
         return m.group(1).strip()
@@ -41,17 +54,10 @@ def parse_profile(text: str) -> Dict[str, FieldResult]:
     text_stripped = text.strip()
 
     # Prefix extraction (high confidence)
-    for field in ("goal", "constraint", "preference"):
-        val = _extract_with_prefix(text_stripped, field)
+    for canonical in ("goals", "constraints", "preferences"):
+        val = _extract_with_prefix(text_stripped, canonical)
         if val:
-            key = field + ("s" if not field.endswith("s") else "")
-            if key == "goals" and not field.endswith("s"):
-                key = "goals"
-            if key == "constraints" and not field.endswith("s"):
-                key = "constraints"
-            if key == "preferences" and not field.endswith("s"):
-                key = "preferences"
-            res[key] = {"value": val, "confidence": 0.95, "source": "prefix"}
+            res[canonical] = {"value": val, "confidence": 0.95, "source": "prefix"}
 
     # Keyword extraction (low confidence hints)
     if res["goals"]["value"] is None:  # type: ignore[index]
@@ -68,4 +74,3 @@ def parse_profile(text: str) -> Dict[str, FieldResult]:
             res["preferences"] = {"value": cand, "confidence": 0.55, "source": "keyword"}
 
     return res
-
