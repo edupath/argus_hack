@@ -17,6 +17,8 @@ from .services.requirements_lookup import (
     get_adapter as get_requirements_adapter,
     match_program_in_text,
 )
+from .services.partner_handoff import enqueue_handoff, get_status as get_job_status, worker_send
+from .services.assessment import run_sample_assessment
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -212,6 +214,32 @@ def chat(
             resp["reasoning"] = reasoning
         return resp
 
+    # Submit hook: "submit <program name>"
+    text_msg = req.message.strip()
+    low_msg = text_msg.lower()
+    if low_msg.startswith("submit "):
+        program_name = text_msg[len("submit ") :].strip()
+        if not program_name:
+            raise HTTPException(status_code=400, detail="program name required after 'submit '")
+        # Require profile completeness from DB and an assessment result in STATE
+        state_entry = _ensure_user(req.user_id)
+        assessment = state_entry.get("assessment")  # type: ignore[assignment]
+        user_state = session.get(UserState, req.user_id)
+        if not user_state:
+            raise HTTPException(status_code=404, detail="user not found")
+        if not (user_state.goals and user_state.constraints and user_state.preferences and assessment):
+            raise HTTPException(status_code=400, detail="profile incomplete or assessment missing")
+        dossier = {
+            "profile": {
+                "goals": user_state.goals,
+                "constraints": user_state.constraints,
+                "preferences": user_state.preferences,
+            },
+            "assessments": assessment,
+        }
+        job_id = enqueue_handoff(session, req.user_id, program_name, dossier)
+        return {"message": f"submitted '{program_name}'", "job": {"id": job_id, "status": "queued"}, "hint": f"Check /handoff/status/{job_id}"}
+
     # Otherwise, return matches
     matches = _mock_matches(profile)
     reasoning["matches_logic"] = "mock top-2 by goal alignment"
@@ -225,6 +253,7 @@ def chat(
     ts = datetime.now(timezone.utc).isoformat()
     short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
     append_audit(f"{ts} user={req.user_id} next=done parsed={short}")
+<<<<<<< HEAD
     # Optional hint if program name detected
     try:
         adapter = get_requirements_adapter("mock")
@@ -232,11 +261,22 @@ def chat(
     except Exception:
         hint_name = None
 
+    # Build reply with optional preview hint and submission hint
     reply_text = summary
     if hint_name:
         reply_text += f"\n\nI can preview requirements for '{hint_name}'—say 'preview {hint_name}' to see them."
 
+    # If profile complete, run a quick assessment and include submission hint
+    submission_hint: Optional[str] = None
+    if not missing:
+        state_entry = _ensure_user(req.user_id)
+        assessment = run_sample_assessment()
+        state_entry["assessment"] = assessment
+        submission_hint = "Say 'submit <program name>' to send your application."
+
     resp = {"reply": reply_text, "matches": [m.model_dump() for m in matches]}
+    if submission_hint:
+        resp["hint"] = submission_hint
     if debug_on:
         resp["reasoning"] = reasoning
     return resp
@@ -309,3 +349,42 @@ def preview_requirements_post(payload: RequirementsPreviewRequest):
         return data
     except KeyError:
         raise HTTPException(status_code=404, detail="Program not found")
+class HandoffSubmit(BaseModel):
+    user_id: str
+    program_name: str
+
+
+@app.post("/handoff/submit")
+def handoff_submit(req: HandoffSubmit, session: Session = Depends(get_session)):
+    # Load user state
+    user_state = session.get(UserState, req.user_id)
+    if user_state is None:
+        raise HTTPException(status_code=404, detail="user not found")
+    profile = {
+        "goals": user_state.goals,
+        "constraints": user_state.constraints,
+        "preferences": user_state.preferences,
+    }
+    # Best-effort grab of in-memory assessment
+    state_entry = _ensure_user(req.user_id)
+    assessment = state_entry.get("assessment") if isinstance(state_entry, dict) else None
+    dossier = {"profile": profile, "assessments": assessment or {}}
+    job_id = enqueue_handoff(session, req.user_id, req.program_name, dossier)
+    return {"id": job_id, "status": "queued"}
+
+
+@app.get("/handoff/status/{job_id}")
+def handoff_status(job_id: int, session: Session = Depends(get_session)):
+    try:
+        return get_job_status(session, job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")
+
+
+@app.post("/handoff/worker/{job_id}")
+def handoff_worker(job_id: int, session: Session = Depends(get_session)):
+    try:
+        worker_send(session, job_id)
+        return get_job_status(session, job_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="job not found")

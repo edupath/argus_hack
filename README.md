@@ -98,5 +98,13 @@ Makefile             # install/run/test helpers
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
+# Partner Handoff (stub)
+- Submit a dossier for a user and program (enqueues a job):
+  - `curl -X POST http://localhost:8000/handoff/submit -H "content-type: application/json" -d '{"user_id":"u1","program_name":"State University — B.S. Computer Science"}'`
+- Check job status:
+  - `curl http://localhost:8000/handoff/status/1`
+- Trigger worker send (dev/testing):
+  - `curl -X POST http://localhost:8000/handoff/worker/1`
+
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
