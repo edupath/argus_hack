@@ -6,6 +6,7 @@ from typing import AsyncIterator
 from pathlib import Path
 from datetime import datetime, timezone
 import json
+from sqlalchemy import text
 
 from .models import StudentProfile, ProgramMatch
 from .db import engine, get_session, ensure_column, append_audit
@@ -35,6 +36,16 @@ STATE: Dict[str, Dict[str, object]] = {}
 @app.get("/")
 def root():
     return {"status": "ok"}
+
+
+@app.get("/health")
+def health(session: Session = Depends(get_session)):
+    # Perform a trivial DB check
+    try:
+        session.exec(text("SELECT 1")).first()
+        return {"status": "ok", "db": "ok"}
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
 
 
 class ChatRequest(BaseModel):

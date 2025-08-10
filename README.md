@@ -44,7 +44,7 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Run the service (reload enabled):
   - `make run`
 - Test the health endpoint:
-  - `curl http://127.0.0.1:8000/`
+  - `curl http://127.0.0.1:8000/health`
 - Run tests (requires `pytest` installed in your venv):
   - `make test`
 
@@ -55,9 +55,12 @@ This project builds an AI-powered, agentic advisor that guides students from goa
   - Stop the app and run `rm -f data/app.db` (or `rm -rf data/`)
   - Then restart the app to recreate tables
 
-### Debugging
+### Debugging & Logs
 - Add `?debug=1` to API requests or header `X-Debug: true` to surface per-message reasoning.
 - A compact, single-line audit is appended to `data/audit.log` for each message.
+- Simple log rotation: when `data/audit.log` exceeds 5MB, it is automatically
+  renamed to `data/audit.1.log` on the next write and a fresh `audit.log` is
+  created.
 
 Project layout:
 
