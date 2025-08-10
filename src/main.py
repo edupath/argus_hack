@@ -8,10 +8,15 @@ from datetime import datetime, timezone
 import json
 from sqlalchemy import text
 
-from .models import StudentProfile, ProgramMatch
+from .models import StudentProfile, ProgramMatch, ProgramRequirements
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
+from .services.requirements_adapter import get_provider
+from .services.requirements_lookup import (
+    get_adapter as get_requirements_adapter,
+    match_program_in_text,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -193,7 +198,16 @@ def chat(
         ts = datetime.now(timezone.utc).isoformat()
         short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
         append_audit(f"{ts} user={req.user_id} next=question parsed={short}")
-        resp = {"reply": q, "next_questions": [q]}
+        # Optional hint if program name detected
+        try:
+            adapter = get_requirements_adapter("mock")
+            hint_name = match_program_in_text(req.message, adapter.known_programs())  # type: ignore[attr-defined]
+        except Exception:
+            hint_name = None
+        reply_text = q
+        if hint_name:
+            reply_text += f"\n\nI can preview requirements for '{hint_name}'—say 'preview {hint_name}' to see them."
+        resp = {"reply": reply_text, "next_questions": [q]}
         if debug_on:
             resp["reasoning"] = reasoning
         return resp
@@ -211,7 +225,18 @@ def chat(
     ts = datetime.now(timezone.utc).isoformat()
     short = f"g={bool(profile.goals)} c={bool(profile.constraints)} p={bool(profile.preferences)}"
     append_audit(f"{ts} user={req.user_id} next=done parsed={short}")
-    resp = {"reply": summary, "matches": [m.model_dump() for m in matches]}
+    # Optional hint if program name detected
+    try:
+        adapter = get_requirements_adapter("mock")
+        hint_name = match_program_in_text(req.message, adapter.known_programs())  # type: ignore[attr-defined]
+    except Exception:
+        hint_name = None
+
+    reply_text = summary
+    if hint_name:
+        reply_text += f"\n\nI can preview requirements for '{hint_name}'—say 'preview {hint_name}' to see them."
+
+    resp = {"reply": reply_text, "matches": [m.model_dump() for m in matches]}
     if debug_on:
         resp["reasoning"] = reasoning
     return resp
@@ -256,3 +281,31 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+@app.get("/requirements/{program_id}")
+def preview_requirements(
+    program_id: str,
+    provider: str = Query(default="mock"),
+):
+    try:
+        prov = get_provider(provider)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    reqs = prov.fetch(program_id)
+    return reqs.model_dump()
+
+
+class RequirementsPreviewRequest(BaseModel):
+    program_name: str
+
+
+@app.post("/requirements/preview")
+def preview_requirements_post(payload: RequirementsPreviewRequest):
+    try:
+        adapter = get_requirements_adapter("mock")
+        data = adapter.get_requirements(payload.program_name)
+        return data
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Program not found")

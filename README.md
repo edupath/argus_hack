@@ -62,6 +62,12 @@ This project builds an AI-powered, agentic advisor that guides students from goa
   renamed to `data/audit.1.log` on the next write and a fresh `audit.log` is
   created.
 
+### Requirements Preview
+- Mock adapter supports a few example programs.
+- Preview via API:
+  - `curl -s -X POST http://127.0.0.1:8000/requirements/preview -H 'Content-Type: application/json' -d '{"program_name":"City College — Data Analytics Certificate"}' | jq`
+- During chat, if a known program name appears in a message, the reply suggests: "preview <name>" to see requirements.
+
 Project layout:
 
 ```
