@@ -44,7 +44,7 @@ This project builds an AI-powered, agentic advisor that guides students from goa
 - Run the service (reload enabled):
   - `make run`
 - Test the health endpoint:
-  - `curl http://127.0.0.1:8000/`
+  - `curl http://127.0.0.1:8000/health`
 - Run tests (requires `pytest` installed in your venv):
   - `make test`
 
@@ -55,9 +55,18 @@ This project builds an AI-powered, agentic advisor that guides students from goa
   - Stop the app and run `rm -f data/app.db` (or `rm -rf data/`)
   - Then restart the app to recreate tables
 
-### Debugging
+### Debugging & Logs
 - Add `?debug=1` to API requests or header `X-Debug: true` to surface per-message reasoning.
 - A compact, single-line audit is appended to `data/audit.log` for each message.
+- Simple log rotation: when `data/audit.log` exceeds 5MB, it is automatically
+  renamed to `data/audit.1.log` on the next write and a fresh `audit.log` is
+  created.
+
+### Requirements Preview
+- Mock adapter supports a few example programs.
+- Preview via API:
+  - `curl -s -X POST http://127.0.0.1:8000/requirements/preview -H 'Content-Type: application/json' -d '{"program_name":"City College — Data Analytics Certificate"}' | jq`
+- During chat, if a known program name appears in a message, the reply suggests: "preview <name>" to see requirements.
 
 Project layout:
 
@@ -88,6 +97,40 @@ Makefile             # install/run/test helpers
 - Tests: `pytest -q` or `npm test`
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
+
+<<<<<<< HEAD
+<<<<<<< HEAD
+# Partner Handoff (stub)
+- Submit a dossier for a user and program (enqueues a job):
+  - `curl -X POST http://localhost:8000/handoff/submit -H "content-type: application/json" -d '{"user_id":"u1","program_name":"State University — B.S. Computer Science"}'`
+- Check job status:
+  - `curl http://localhost:8000/handoff/status/1`
+- Trigger worker send (dev/testing):
+  - `curl -X POST http://localhost:8000/handoff/worker/1`
+
+# English5 Assessment
+- Get questions:
+  - `curl http://localhost:8000/assessments/english5/questions`
+- Score answers (example):
+  - `curl -X POST http://localhost:8000/assessments/english5/score -H "content-type: application/json" -d '{"answers":{"q1":"B","q2":"B","q3":"C","q4":"C","q5":"B"}}'`
+- Chat shortcut:
+  - If your goals mention humanities/communications/admissions essays, chat replies will suggest English5.
+  - You can also send `answers: q1=B,q2=B,q3=C,q4=C,q5=B` to score via chat.
+=======
+# Demo Seed
+- Create a fully-populated demo flow (idempotent):
+  - `curl -X POST http://localhost:8000/demo/seed`
+>>>>>>> origin/feat/demo-seed
+=======
+# Requirements Provider
+- By default, requirements preview uses a mock provider.
+- To enable the live provider (scrapes a known public program page), set:
+  - `REQUIREMENTS_PROVIDER=live`
+- Preview endpoint:
+  - `curl -X POST http://localhost:8000/requirements/preview -H 'content-type: application/json' -d '{"program_name":"State University — B.S. Computer Science"}'`
+- Override per call:
+  - `curl -X POST 'http://localhost:8000/requirements/preview?use=live' -H 'content-type: application/json' -d '{"program_name":"State University — B.S. Computer Science"}'`
+>>>>>>> origin/feat/requirements-provider-live
 
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.

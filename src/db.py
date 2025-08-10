@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from typing import Iterator
 
 from sqlmodel import SQLModel, Session, create_engine
@@ -34,7 +35,28 @@ def ensure_column(conn: Connection, table: str, column: str, type_sql: str) -> N
 
 
 def append_audit(line: str) -> None:
-    """Append a single line to the audit log under data/audit.log."""
+    """Append a single line to the audit log under data/audit.log.
+
+    Performs a simple rotation if the current log exceeds 5MB by renaming
+    audit.log to audit.1.log before writing the new line.
+    """
     Path("data").mkdir(parents=True, exist_ok=True)
-    with open("data/audit.log", "a", encoding="utf-8") as f:
+
+    log_path = Path("data/audit.log")
+    backup_path = Path("data/audit.1.log")
+
+    # Simple rotation: if log > 5MB, move to audit.1.log
+    try:
+        if log_path.exists() and log_path.stat().st_size > 5 * 1024 * 1024:
+            # Remove previous backup if present to allow rename
+            try:
+                backup_path.unlink()
+            except FileNotFoundError:
+                pass
+            log_path.rename(backup_path)
+    except OSError:
+        # If rotation fails, continue best-effort appending
+        pass
+
+    with open(log_path, "a", encoding="utf-8") as f:
         f.write(line.rstrip() + "\n")
