@@ -173,7 +173,12 @@ export default function ApplicationsPage() {
     setInput('');
     setIsTyping(true);
     
-    console.log('[WEB] sending application chat', { last: input, applicationId: currentApplication.id });
+    console.log('[WEB] sending application chat', { 
+      last: input, 
+      applicationId: currentApplication.id,
+      currentApplication: currentApplication,
+      hasId: !!currentApplication.id 
+    });
     try {
               const res = await fetch(`http://localhost:3001/api/chat`, {  
         method: 'POST', 
@@ -189,6 +194,8 @@ export default function ApplicationsPage() {
       });
       const json = await res.json();
       console.log('[WEB] got', json);
+      console.log('[WEB] response content:', json.response);
+      console.log('[WEB] applicationComplete:', json.applicationComplete);
       
       const newMessages = [...next, { role: 'assistant' as const, content: json.response }];
       setMessages(newMessages);
@@ -303,9 +310,9 @@ export default function ApplicationsPage() {
     
     for (let i = 0; i < chatMessages.length; i++) {
       const message = chatMessages[i];
-      if (message.role === 'assistant' && i + 1 < chatMessages.length) {
+      if (message.role === 'assistant' && message.content && i + 1 < chatMessages.length) {
         const nextMessage = chatMessages[i + 1];
-        if (nextMessage.role === 'user') {
+        if (nextMessage.role === 'user' && nextMessage.content) {
           // This is a question-answer pair
           responses.push({
             question: message.content,
@@ -368,6 +375,9 @@ export default function ApplicationsPage() {
       if (response.ok) {
         const data = await response.json();
         const createdApplication = data.application;
+        
+        console.log('[WEB] Created application:', createdApplication);
+        console.log('[WEB] Application ID:', createdApplication.id);
         
         setApplications(prev => [...prev, createdApplication]);
         setCurrentApplication(createdApplication);
@@ -642,7 +652,7 @@ export default function ApplicationsPage() {
                 
                 <div ref={chatRef} className="flex-1 overflow-y-auto space-y-3 mb-4 scroll-smooth chat-scroll min-h-0 p-2">
                   {messages.map((m, i) => (
-                    <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
+                    <div key={`${m.role}-${i}-${m.content?.substring(0, 20)}`} className={m.role === 'user' ? 'text-right' : ''}>
                       <div className={`inline-block px-3 py-2 rounded-lg max-w-xs lg:max-w-md break-words ${
                         m.role === 'user' ? 'bg-primary text-black' : 'bg-secondary/70 text-white'
                       }`}>
@@ -687,7 +697,7 @@ export default function ApplicationsPage() {
                     </div>
                     
                     {/* Show submit button if application is complete */}
-                    {messages.some(m => m.content.includes('Would you like to submit your application now?')) && (
+                    {messages.some(m => m.content && m.content.includes('Would you like to submit your application now?')) && (
                       <div className="flex justify-center pt-2">
                         <button 
                           onClick={() => submitApplication(currentApplication.id)}

@@ -5,60 +5,28 @@ import { getUserProfile, updateUserProfile } from '../../database/users';
 export const profileManager = tool({
   description: 'Fetch, display, and update student profile information for application purposes. Use this to get current profile data, display it to student for confirmation, and update any changes they want to make.',
   parameters: z.object({
-    action: z.enum(['fetch', 'display', 'update']),
-    userId: z.string(),
-    updates: z.object({
-      personal: z.object({
-        firstName: z.string().optional(),
-        middleName: z.string().optional(),
-        lastName: z.string().optional(),
-        dateOfBirth: z.string().optional(),
-        email: z.string().optional(),
-        phone: z.string().optional(),
-        mailingAddress: z.object({
-          street: z.string().optional(),
-          city: z.string().optional(),
-          state: z.string().optional(),
-          zipCode: z.string().optional(),
-          country: z.string().optional()
-        }).optional(),
-        gender: z.string().optional(),
-        pronouns: z.string().optional(),
-        birthCountry: z.string().optional(),
-        citizenshipStatus: z.string().optional()
-      }).optional(),
-      academic: z.object({
-        currentGPA: z.string().optional(),
-        gpaScale: z.number().optional(),
-        testScores: z.object({
-          sat: z.object({
-            total: z.number().optional(),
-            math: z.number().optional(),
-            reading: z.number().optional(),
-            writing: z.number().optional()
-          }).optional(),
-          act: z.object({
-            composite: z.number().optional(),
-            math: z.number().optional(),
-            english: z.number().optional(),
-            reading: z.number().optional(),
-            science: z.number().optional()
-          }).optional(),
-          toefl: z.number().optional(),
-          ielts: z.number().optional(),
-          gre: z.object({
-            verbal: z.number().optional(),
-            quantitative: z.number().optional(),
-            analytical: z.number().optional()
-          }).optional(),
-          gmat: z.number().optional()
-        }).optional()
-      }).optional()
-    }).optional()
+    payload: z.string().describe('JSON string containing action, userId, and optional updates')
   }),
-  execute: async ({ action, userId, updates }) => {
+  execute: async ({ payload }) => {
     try {
-      console.log('[TOOL profile-manager]', { action, userId, hasUpdates: !!updates });
+      console.log('[TOOL profile-manager] payload:', payload);
+      
+      // Parse payload
+      let action, userId, parsedUpdates;
+      try {
+        const data = JSON.parse(payload || '{}');
+        action = data.action;
+        userId = data.userId;
+        parsedUpdates = data.updates;
+      } catch (e) {
+        return JSON.stringify({ 
+          success: false, 
+          error: 'Invalid JSON in payload',
+          message: 'The payload must be valid JSON with action, userId, and optional updates.' 
+        });
+      }
+      
+      console.log('[TOOL profile-manager]', { action, userId, hasUpdates: !!parsedUpdates });
 
       if (action === 'fetch') {
         const profile = await getUserProfile(userId);
@@ -111,36 +79,47 @@ export const profileManager = tool({
           });
         }
 
-        // Create a user-friendly display of the profile
+        // Create a user-friendly display of the profile with only available information
+        const personalInfo = [];
+        const mailingInfo = [];
+        const academicInfo = [];
+
+        // Personal Information
+        const fullName = `${profile.profile.personal.firstName || ''} ${profile.profile.personal.middleName || ''} ${profile.profile.personal.lastName || ''}`.trim();
+        if (fullName) personalInfo.push(`• **Name:** ${fullName}`);
+        if (profile.profile.personal.dateOfBirth) personalInfo.push(`• **Date of Birth:** ${profile.profile.personal.dateOfBirth}`);
+        if (profile.profile.personal.email) personalInfo.push(`• **Email:** ${profile.profile.personal.email}`);
+        if (profile.profile.personal.phone) personalInfo.push(`• **Phone:** ${profile.profile.personal.phone}`);
+        if (profile.profile.personal.gender) personalInfo.push(`• **Gender:** ${profile.profile.personal.gender}`);
+        if (profile.profile.personal.pronouns) personalInfo.push(`• **Pronouns:** ${profile.profile.personal.pronouns}`);
+        if (profile.profile.personal.birthCountry) personalInfo.push(`• **Birth Country:** ${profile.profile.personal.birthCountry}`);
+        if (profile.profile.personal.citizenshipStatus) personalInfo.push(`• **Citizenship Status:** ${profile.profile.personal.citizenshipStatus}`);
+
+        // Mailing Address
+        if (profile.profile.personal.mailingAddress.street) mailingInfo.push(`• **Street:** ${profile.profile.personal.mailingAddress.street}`);
+        if (profile.profile.personal.mailingAddress.city) mailingInfo.push(`• **City:** ${profile.profile.personal.mailingAddress.city}`);
+        if (profile.profile.personal.mailingAddress.state) mailingInfo.push(`• **State:** ${profile.profile.personal.mailingAddress.state}`);
+        if (profile.profile.personal.mailingAddress.zipCode) mailingInfo.push(`• **ZIP Code:** ${profile.profile.personal.mailingAddress.zipCode}`);
+        if (profile.profile.personal.mailingAddress.country) mailingInfo.push(`• **Country:** ${profile.profile.personal.mailingAddress.country}`);
+
+        // Academic Information
+        if (profile.profile.academic.currentGPA) academicInfo.push(`• **GPA:** ${profile.profile.academic.currentGPA}/${profile.profile.academic.gpaScale || 4.0}`);
+        if (profile.profile.academic.testScores.sat.total > 0) academicInfo.push(`• **SAT Scores:** Total: ${profile.profile.academic.testScores.sat.total}, Math: ${profile.profile.academic.testScores.sat.math}, Reading: ${profile.profile.academic.testScores.sat.reading}, Writing: ${profile.profile.academic.testScores.sat.writing}`);
+        if (profile.profile.academic.testScores.act.composite > 0) academicInfo.push(`• **ACT Scores:** Composite: ${profile.profile.academic.testScores.act.composite}, Math: ${profile.profile.academic.testScores.act.math}, English: ${profile.profile.academic.testScores.act.english}, Reading: ${profile.profile.academic.testScores.act.reading}, Science: ${profile.profile.academic.testScores.act.science}`);
+        if (profile.profile.academic.testScores.toefl > 0) academicInfo.push(`• **TOEFL:** ${profile.profile.academic.testScores.toefl}`);
+        if (profile.profile.academic.testScores.ielts > 0) academicInfo.push(`• **IELTS:** ${profile.profile.academic.testScores.ielts}`);
+        if (profile.profile.academic.testScores.gre.verbal > 0) academicInfo.push(`• **GRE:** Verbal: ${profile.profile.academic.testScores.gre.verbal}, Quantitative: ${profile.profile.academic.testScores.gre.quantitative}, Analytical: ${profile.profile.academic.testScores.gre.analytical}`);
+        if (profile.profile.academic.testScores.gmat > 0) academicInfo.push(`• **GMAT:** ${profile.profile.academic.testScores.gmat}`);
+        if (profile.profile.academic.transcript.fileName) academicInfo.push(`• **Transcript:** ${profile.profile.academic.transcript.fileName}`);
+
         const displayText = `
-**Personal Information:**
-• **Name:** ${profile.profile.personal.firstName || 'Not provided'} ${profile.profile.personal.middleName || ''} ${profile.profile.personal.lastName || ''}
-• **Date of Birth:** ${profile.profile.personal.dateOfBirth || 'Not provided'}
-• **Email:** ${profile.profile.personal.email || 'Not provided'}
-• **Phone:** ${profile.profile.personal.phone || 'Not provided'}
-• **Gender:** ${profile.profile.personal.gender || 'Not provided'}
-• **Pronouns:** ${profile.profile.personal.pronouns || 'Not provided'}
-• **Birth Country:** ${profile.profile.personal.birthCountry || 'Not provided'}
-• **Citizenship Status:** ${profile.profile.personal.citizenshipStatus || 'Not provided'}
+**Available Information:**
 
-**Mailing Address:**
-• **Street:** ${profile.profile.personal.mailingAddress.street || 'Not provided'}
-• **City:** ${profile.profile.personal.mailingAddress.city || 'Not provided'}
-• **State:** ${profile.profile.personal.mailingAddress.state || 'Not provided'}
-• **ZIP Code:** ${profile.profile.personal.mailingAddress.zipCode || 'Not provided'}
-• **Country:** ${profile.profile.personal.mailingAddress.country || 'Not provided'}
+${personalInfo.length > 0 ? `**Personal Information:**\n${personalInfo.join('\n')}\n` : ''}
+${mailingInfo.length > 0 ? `**Mailing Address:**\n${mailingInfo.join('\n')}\n` : ''}
+${academicInfo.length > 0 ? `**Academic Information:**\n${academicInfo.join('\n')}\n` : ''}
 
-**Academic Information:**
-• **GPA:** ${profile.profile.academic.currentGPA || 'Not provided'}/${profile.profile.academic.gpaScale || 4.0}
-• **SAT Scores:** ${profile.profile.academic.testScores.sat.total > 0 ? `Total: ${profile.profile.academic.testScores.sat.total}, Math: ${profile.profile.academic.testScores.sat.math}, Reading: ${profile.profile.academic.testScores.sat.reading}, Writing: ${profile.profile.academic.testScores.sat.writing}` : 'Not provided'}
-• **ACT Scores:** ${profile.profile.academic.testScores.act.composite > 0 ? `Composite: ${profile.profile.academic.testScores.act.composite}, Math: ${profile.profile.academic.testScores.act.math}, English: ${profile.profile.academic.testScores.act.english}, Reading: ${profile.profile.academic.testScores.act.reading}, Science: ${profile.profile.academic.testScores.act.science}` : 'Not provided'}
-• **TOEFL:** ${profile.profile.academic.testScores.toefl > 0 ? profile.profile.academic.testScores.toefl : 'Not provided'}
-• **IELTS:** ${profile.profile.academic.testScores.ielts > 0 ? profile.profile.academic.testScores.ielts : 'Not provided'}
-• **GRE:** ${profile.profile.academic.testScores.gre.verbal > 0 ? `Verbal: ${profile.profile.academic.testScores.gre.verbal}, Quantitative: ${profile.profile.academic.testScores.gre.quantitative}, Analytical: ${profile.profile.academic.testScores.gre.analytical}` : 'Not provided'}
-• **GMAT:** ${profile.profile.academic.testScores.gmat > 0 ? profile.profile.academic.testScores.gmat : 'Not provided'}
-• **Transcript:** ${profile.profile.academic.transcript.fileName || 'Not uploaded'}
-
-Would you like to use this information for your application, or would you like to make any changes?
+${personalInfo.length === 0 && mailingInfo.length === 0 && academicInfo.length === 0 ? 'No profile information is currently available. Please provide your details.' : 'Please confirm if this information is correct, or let me know what you would like to update.'}
         `.trim();
 
         return JSON.stringify({ 
@@ -150,7 +129,7 @@ Would you like to use this information for your application, or would you like t
         });
 
       } else if (action === 'update') {
-        if (!updates) {
+        if (!parsedUpdates) {
           return JSON.stringify({ 
             success: false, 
             error: 'No updates provided',
@@ -170,40 +149,40 @@ Would you like to use this information for your application, or would you like t
         // Prepare updates
         const updateData: any = {};
         
-        if (updates.personal) {
+        if (parsedUpdates.personal) {
           updateData.profile = {
             ...profile.profile,
             personal: {
               ...profile.profile.personal,
-              ...updates.personal,
+              ...parsedUpdates.personal,
               mailingAddress: {
                 ...profile.profile.personal.mailingAddress,
-                ...updates.personal.mailingAddress
+                ...parsedUpdates.personal.mailingAddress
               }
             }
           };
         }
 
-        if (updates.academic) {
+        if (parsedUpdates.academic) {
           updateData.profile = {
             ...updateData.profile || profile.profile,
             academic: {
               ...profile.profile.academic,
-              ...updates.academic,
+              ...parsedUpdates.academic,
               testScores: {
                 ...profile.profile.academic.testScores,
-                ...updates.academic.testScores,
+                ...parsedUpdates.academic.testScores,
                 sat: {
                   ...profile.profile.academic.testScores.sat,
-                  ...updates.academic.testScores?.sat
+                  ...parsedUpdates.academic.testScores?.sat
                 },
                 act: {
                   ...profile.profile.academic.testScores.act,
-                  ...updates.academic.testScores?.act
+                  ...parsedUpdates.academic.testScores?.act
                 },
                 gre: {
                   ...profile.profile.academic.testScores.gre,
-                  ...updates.academic.testScores?.gre
+                  ...parsedUpdates.academic.testScores?.gre
                 }
               }
             }
