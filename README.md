@@ -89,5 +89,14 @@ Makefile             # install/run/test helpers
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
+# Docker
+- Copy env and start the API:
+  - `cp .env.example .env`
+  - `make up`
+- Verify:
+  - `curl http://localhost:8000/`
+- Optional: run tests inside container shell
+  - `docker compose exec api bash -lc "PYTHONPATH=src pytest -q"`
+
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
