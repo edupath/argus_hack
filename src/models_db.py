@@ -37,10 +37,3 @@ class AssessmentResult(SQLModel, table=True):
     score: int
     max_score: int
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-class AssessmentResult(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(foreign_key="userstate.id")
-    assessment: str
-    score: int
-    max_score: int
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

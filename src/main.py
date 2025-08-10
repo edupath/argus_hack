@@ -14,10 +14,11 @@ from .models import StudentProfile, ProgramMatch, ProgramRequirements
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message, PartnerJob, AssessmentResult
 from sqlmodel import SQLModel, Session, select
-from .services.requirements_adapter import get_provider
+from .services.requirements_adapter import get_provider as get_req_provider
 from .services.requirements_lookup import (
     get_adapter as get_requirements_adapter,
     match_program_in_text,
+    get_provider as get_live_req_provider,
 )
 from .services.partner_handoff import enqueue_handoff, get_status as get_job_status, worker_send
 from .services.assessment import run_sample_assessment
@@ -26,7 +27,6 @@ from .services.assessments.english5 import (
     get_questions as english5_questions,
     score_answers as english5_score,
 )
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -41,19 +41,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-from fastapi.middleware.cors import CORSMiddleware as _MW
-app.add_middleware(
-    _MW,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
@@ -437,13 +424,12 @@ def preview_requirements(
     provider: str = Query(default="mock"),
 ):
     try:
-        prov = get_provider(provider)
+        prov = get_req_provider(provider)
     except KeyError:
         raise HTTPException(status_code=404, detail="Provider not found")
 
     reqs = prov.fetch(program_id)
     return reqs.model_dump()
-
 
 class RequirementsPreviewRequest(BaseModel):
     program_name: str
@@ -453,10 +439,8 @@ class RequirementsPreviewRequest(BaseModel):
 def preview_requirements_post(payload: RequirementsPreviewRequest, use: Optional[str] = Query(default=None, alias="use")):
     # Optional override to live provider; default to adapter
     if use and use.strip().lower() == "live":
-        from .services.requirements_lookup_live import get_provider as gp  # type: ignore
-
         try:
-            provider = gp("live")
+            provider = get_live_req_provider("live")
             return provider.preview(payload.program_name)
         except Exception as e:
             raise HTTPException(status_code=502, detail=str(e))
@@ -627,3 +611,14 @@ def register_api_shim(app: FastAPI) -> None:
 # Call this ONCE at the very end of the file, after all route handlers are defined:
 register_api_shim(app)
 # --- end API shim ---
+=======
+def requirements_preview(
+    req: RequirementsPreviewRequest,
+    use: Optional[str] = Query(default=None, alias="use"),
+):
+    provider = get_provider(use)
+    try:
+        return provider.preview(req.program_name)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"provider error: {e}")
+>>>>>>> origin/feat/requirements-provider-live

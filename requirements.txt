@@ -4,3 +4,5 @@ pydantic
 httpx
 pytest
 sqlmodel
+beautifulsoup4
+requests
