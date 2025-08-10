@@ -653,7 +653,7 @@ export default function ApplicationsPage() {
                 <div ref={chatRef} className="flex-1 overflow-y-auto space-y-3 mb-4 scroll-smooth chat-scroll min-h-0 p-2">
                   {messages.map((m, i) => (
                     <div key={`${m.role}-${i}-${m.content?.substring(0, 20)}`} className={m.role === 'user' ? 'text-right' : ''}>
-                      <div className={`inline-block px-3 py-2 rounded-lg max-w-xs lg:max-w-md break-words ${
+                      <div className={`inline-block px-4 py-3 rounded-lg max-w-sm lg:max-w-2xl xl:max-w-3xl break-words ${
                         m.role === 'user' ? 'bg-primary text-black' : 'bg-secondary/70 text-white'
                       }`}>
                         {m.content}
@@ -664,7 +664,7 @@ export default function ApplicationsPage() {
                     <div className="text-left">
                       <div className="inline-block px-3 py-2 rounded-lg bg-secondary/70 text-white">
                         <div className="flex items-center gap-1">
-                          <span>AI is typing</span>
+                          <span>Theo is typing</span>
                           <div className="flex gap-1">
                             <span className="w-1 h-1 bg-white rounded-full animate-bounce"></span>
                             <span className="w-1 h-1 bg-white rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>

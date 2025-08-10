@@ -9,7 +9,8 @@ export const profileManager = tool({
   }),
   execute: async ({ payload }) => {
     try {
-      console.log('[TOOL profile-manager] payload:', payload);
+      console.log('[TOOL profile-manager] EXECUTING with payload:', payload);
+      console.log('[TOOL profile-manager] Tool called successfully!');
       
       // Parse payload
       let action, userId, parsedUpdates;
@@ -79,6 +80,10 @@ export const profileManager = tool({
           });
         }
 
+        console.log('[TOOL profile-manager] Raw profile data:', JSON.stringify(profile, null, 2));
+        console.log('[TOOL profile-manager] Personal info:', JSON.stringify(profile.profile.personal, null, 2));
+        console.log('[TOOL profile-manager] Academic info:', JSON.stringify(profile.profile.academic, null, 2));
+
         // Create a user-friendly display of the profile with only available information
         const personalInfo = [];
         const mailingInfo = [];
@@ -86,38 +91,38 @@ export const profileManager = tool({
 
         // Personal Information
         const fullName = `${profile.profile.personal.firstName || ''} ${profile.profile.personal.middleName || ''} ${profile.profile.personal.lastName || ''}`.trim();
-        if (fullName) personalInfo.push(`• **Name:** ${fullName}`);
-        if (profile.profile.personal.dateOfBirth) personalInfo.push(`• **Date of Birth:** ${profile.profile.personal.dateOfBirth}`);
-        if (profile.profile.personal.email) personalInfo.push(`• **Email:** ${profile.profile.personal.email}`);
-        if (profile.profile.personal.phone) personalInfo.push(`• **Phone:** ${profile.profile.personal.phone}`);
-        if (profile.profile.personal.gender) personalInfo.push(`• **Gender:** ${profile.profile.personal.gender}`);
-        if (profile.profile.personal.pronouns) personalInfo.push(`• **Pronouns:** ${profile.profile.personal.pronouns}`);
-        if (profile.profile.personal.birthCountry) personalInfo.push(`• **Birth Country:** ${profile.profile.personal.birthCountry}`);
-        if (profile.profile.personal.citizenshipStatus) personalInfo.push(`• **Citizenship Status:** ${profile.profile.personal.citizenshipStatus}`);
+        if (fullName) personalInfo.push(`• Name: ${fullName}`);
+        if (profile.profile.personal.dateOfBirth) personalInfo.push(`• Date of Birth: ${profile.profile.personal.dateOfBirth}`);
+        if (profile.profile.personal.email) personalInfo.push(`• Email: ${profile.profile.personal.email}`);
+        if (profile.profile.personal.phone) personalInfo.push(`• Phone: ${profile.profile.personal.phone}`);
+        if (profile.profile.personal.gender) personalInfo.push(`• Gender: ${profile.profile.personal.gender}`);
+        if (profile.profile.personal.pronouns) personalInfo.push(`• Pronouns: ${profile.profile.personal.pronouns}`);
+        if (profile.profile.personal.birthCountry) personalInfo.push(`• Birth Country: ${profile.profile.personal.birthCountry}`);
+        if (profile.profile.personal.citizenshipStatus) personalInfo.push(`• Citizenship Status: ${profile.profile.personal.citizenshipStatus}`);
 
         // Mailing Address
-        if (profile.profile.personal.mailingAddress.street) mailingInfo.push(`• **Street:** ${profile.profile.personal.mailingAddress.street}`);
-        if (profile.profile.personal.mailingAddress.city) mailingInfo.push(`• **City:** ${profile.profile.personal.mailingAddress.city}`);
-        if (profile.profile.personal.mailingAddress.state) mailingInfo.push(`• **State:** ${profile.profile.personal.mailingAddress.state}`);
-        if (profile.profile.personal.mailingAddress.zipCode) mailingInfo.push(`• **ZIP Code:** ${profile.profile.personal.mailingAddress.zipCode}`);
-        if (profile.profile.personal.mailingAddress.country) mailingInfo.push(`• **Country:** ${profile.profile.personal.mailingAddress.country}`);
+        if (profile.profile.personal.mailingAddress.street) mailingInfo.push(`• Street: ${profile.profile.personal.mailingAddress.street}`);
+        if (profile.profile.personal.mailingAddress.city) mailingInfo.push(`• City: ${profile.profile.personal.mailingAddress.city}`);
+        if (profile.profile.personal.mailingAddress.state) mailingInfo.push(`• State: ${profile.profile.personal.mailingAddress.state}`);
+        if (profile.profile.personal.mailingAddress.zipCode) mailingInfo.push(`• ZIP Code: ${profile.profile.personal.mailingAddress.zipCode}`);
+        if (profile.profile.personal.mailingAddress.country) mailingInfo.push(`• Country: ${profile.profile.personal.mailingAddress.country}`);
 
         // Academic Information
-        if (profile.profile.academic.currentGPA) academicInfo.push(`• **GPA:** ${profile.profile.academic.currentGPA}/${profile.profile.academic.gpaScale || 4.0}`);
-        if (profile.profile.academic.testScores.sat.total > 0) academicInfo.push(`• **SAT Scores:** Total: ${profile.profile.academic.testScores.sat.total}, Math: ${profile.profile.academic.testScores.sat.math}, Reading: ${profile.profile.academic.testScores.sat.reading}, Writing: ${profile.profile.academic.testScores.sat.writing}`);
-        if (profile.profile.academic.testScores.act.composite > 0) academicInfo.push(`• **ACT Scores:** Composite: ${profile.profile.academic.testScores.act.composite}, Math: ${profile.profile.academic.testScores.act.math}, English: ${profile.profile.academic.testScores.act.english}, Reading: ${profile.profile.academic.testScores.act.reading}, Science: ${profile.profile.academic.testScores.act.science}`);
-        if (profile.profile.academic.testScores.toefl > 0) academicInfo.push(`• **TOEFL:** ${profile.profile.academic.testScores.toefl}`);
-        if (profile.profile.academic.testScores.ielts > 0) academicInfo.push(`• **IELTS:** ${profile.profile.academic.testScores.ielts}`);
-        if (profile.profile.academic.testScores.gre.verbal > 0) academicInfo.push(`• **GRE:** Verbal: ${profile.profile.academic.testScores.gre.verbal}, Quantitative: ${profile.profile.academic.testScores.gre.quantitative}, Analytical: ${profile.profile.academic.testScores.gre.analytical}`);
-        if (profile.profile.academic.testScores.gmat > 0) academicInfo.push(`• **GMAT:** ${profile.profile.academic.testScores.gmat}`);
-        if (profile.profile.academic.transcript.fileName) academicInfo.push(`• **Transcript:** ${profile.profile.academic.transcript.fileName}`);
+        if (profile.profile.academic.currentGPA) academicInfo.push(`• GPA: ${profile.profile.academic.currentGPA}/${profile.profile.academic.gpaScale || 4.0}`);
+        if (profile.profile.academic.testScores.sat.total > 0) academicInfo.push(`• SAT Scores: Total: ${profile.profile.academic.testScores.sat.total}, Math: ${profile.profile.academic.testScores.sat.math}, Reading: ${profile.profile.academic.testScores.sat.reading}, Writing: ${profile.profile.academic.testScores.sat.writing}`);
+        if (profile.profile.academic.testScores.act.composite > 0) academicInfo.push(`• ACT Scores: Composite: ${profile.profile.academic.testScores.act.composite}, Math: ${profile.profile.academic.testScores.act.math}, English: ${profile.profile.academic.testScores.act.english}, Reading: ${profile.profile.academic.testScores.act.reading}, Science: ${profile.profile.academic.testScores.act.science}`);
+        if (profile.profile.academic.testScores.toefl > 0) academicInfo.push(`• TOEFL: ${profile.profile.academic.testScores.toefl}`);
+        if (profile.profile.academic.testScores.ielts > 0) academicInfo.push(`• IELTS: ${profile.profile.academic.testScores.ielts}`);
+        if (profile.profile.academic.testScores.gre.verbal > 0) academicInfo.push(`• GRE: Verbal: ${profile.profile.academic.testScores.gre.verbal}, Quantitative: ${profile.profile.academic.testScores.gre.quantitative}, Analytical: ${profile.profile.academic.testScores.gre.analytical}`);
+        if (profile.profile.academic.testScores.gmat > 0) academicInfo.push(`• GMAT: ${profile.profile.academic.testScores.gmat}`);
+        if (profile.profile.academic.transcript.fileName) academicInfo.push(`• Transcript: ${profile.profile.academic.transcript.fileName}`);
 
         const displayText = `
-**Available Information:**
+Available Information:
 
-${personalInfo.length > 0 ? `**Personal Information:**\n${personalInfo.join('\n')}\n` : ''}
-${mailingInfo.length > 0 ? `**Mailing Address:**\n${mailingInfo.join('\n')}\n` : ''}
-${academicInfo.length > 0 ? `**Academic Information:**\n${academicInfo.join('\n')}\n` : ''}
+${personalInfo.length > 0 ? `Personal Information:\n${personalInfo.join('\n\n')}\n\n` : ''}
+${mailingInfo.length > 0 ? `Mailing Address:\n${mailingInfo.join('\n\n')}\n\n` : ''}
+${academicInfo.length > 0 ? `Academic Information:\n${academicInfo.join('\n\n')}\n\n` : ''}
 
 ${personalInfo.length === 0 && mailingInfo.length === 0 && academicInfo.length === 0 ? 'No profile information is currently available. Please provide your details.' : 'Please confirm if this information is correct, or let me know what you would like to update.'}
         `.trim();

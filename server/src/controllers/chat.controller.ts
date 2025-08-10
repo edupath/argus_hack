@@ -20,8 +20,9 @@ export class ChatController {
     const { mode, messages, userId, applicationId, university, program } = ChatSchema.parse(body);
     console.log('[CHAT] parsed', { mode, count: messages.length, userId, applicationId, university, program });
     
+    console.log('[CHAT] calling agent with:', { mode, university, program, userId, messageCount: messages.length });
     const response = await agent(messages as any, mode, university, program, userId);
-    console.log('[CHAT] agent response', response);
+    console.log('[CHAT] agent response:', response);
     
     // Check if application is complete (for application mode)
     let applicationComplete = false;

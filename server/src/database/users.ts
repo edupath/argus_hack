@@ -314,9 +314,9 @@ function migrateProfileStructure(data: any): UserProfile {
     profileComplete: data.profileComplete || false,
     profile: {
       personal: {
-        firstName: data.profile?.personal?.fullName?.split(' ')[0] || '',
-        middleName: data.profile?.personal?.fullName?.split(' ')[1] || '',
-        lastName: data.profile?.personal?.fullName?.split(' ').slice(2).join(' ') || '',
+        firstName: data.profile?.personal?.firstName || data.fullName?.split(' ')[0] || '',
+        middleName: data.profile?.personal?.middleName || data.fullName?.split(' ')[1] || '',
+        lastName: data.profile?.personal?.lastName || data.fullName?.split(' ').slice(2).join(' ') || '',
         dateOfBirth: data.profile?.personal?.dateOfBirth || '',
         email: data.profile?.personal?.email || data.email || '',
         phone: data.profile?.personal?.phone || '',
