@@ -106,5 +106,14 @@ Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 - Trigger worker send (dev/testing):
   - `curl -X POST http://localhost:8000/handoff/worker/1`
 
+# English5 Assessment
+- Get questions:
+  - `curl http://localhost:8000/assessments/english5/questions`
+- Score answers (example):
+  - `curl -X POST http://localhost:8000/assessments/english5/score -H "content-type: application/json" -d '{"answers":{"q1":"B","q2":"B","q3":"C","q4":"C","q5":"B"}}'`
+- Chat shortcut:
+  - If your goals mention humanities/communications/admissions essays, chat replies will suggest English5.
+  - You can also send `answers: q1=B,q2=B,q3=C,q4=C,q5=B` to score via chat.
+
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
