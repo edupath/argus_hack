@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 import { app } from '../lib/firebase';
 import { useRouter } from 'next/navigation';
@@ -97,7 +97,7 @@ export default function Page() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Msg[]>([{ role: 'assistant', content: 'Hi! How can I help with your university plans today?' }]);
   const [isTyping, setIsTyping] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const chatRef = useRef<HTMLDivElement>(null);
   
   // Real data from database
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -132,6 +132,7 @@ export default function Page() {
   useEffect(() => {
     if (user && authReady) {
       fetchUserData();
+      loadCounselingHistory();
     }
   }, [user, authReady]);
 
@@ -192,21 +193,65 @@ export default function Page() {
     setInput('');
     setIsTyping(true);
     
-    console.log('[WEB] sending', { mode, last: input });
+    console.log('[WEB] sending', { mode: 'counseling', last: input });
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_BASE_URL}/api/chat`, { 
+              const res = await fetch(`http://localhost:3001/api/chat`, {  
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify({ mode, messages: next }) 
+        body: JSON.stringify({ mode: 'counseling', messages: next, userId: user.uid }) 
       });
       const json = await res.json();
       console.log('[WEB] got', json);
-      setMessages([...next, { role: 'assistant' as const, content: json.response }]);
+      
+      const newMessages = [...next, { role: 'assistant' as const, content: json.response }];
+      setMessages(newMessages);
+      
+      // Store conversation history in Firebase
+      await storeCounselingHistory(newMessages);
     } catch (e) {
       console.error('[WEB] error', e);
       setMessages([...next, { role: 'assistant' as const, content: 'Hmm, something went wrong. Please try again.' }]);
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  const storeCounselingHistory = async (chatHistory: Msg[]) => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`http://localhost:3001/api/counseling-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          userId: user.uid, 
+          chatHistory,
+          updatedAt: new Date().toISOString()
+        })
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to store counseling history');
+      }
+    } catch (error) {
+      console.error('Error storing counseling history:', error);
+    }
+  };
+
+  const loadCounselingHistory = async () => {
+    if (!user) return;
+    
+    try {
+      const response = await fetch(`http://localhost:3001/api/counseling-history?userId=${user.uid}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.chatHistory && data.chatHistory.length > 0) {
+          setMessages(data.chatHistory);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading counseling history:', error);
     }
   };
 
@@ -219,7 +264,7 @@ export default function Page() {
         router.push('/profile');
         break;
       case 'questions':
-        setMode('interview');
+        router.push('/applications');
         break;
       case 'programs':
         router.push('/search');
@@ -227,11 +272,7 @@ export default function Page() {
     }
   };
 
-  const handleSearch = () => {
-    if (searchQuery.trim()) {
-      router.push('/search');
-    }
-  };
+
 
   // Calculate profile completeness percentage
   const calculateProfileCompleteness = () => {
@@ -276,15 +317,19 @@ export default function Page() {
     ).length;
   };
 
-  // Get top program matches
-  const getTopProgramMatches = () => {
-    return programMatches.slice(0, 2);
-  };
+
 
   // Get recent activity items
   const getRecentActivityItems = () => {
     return recentActivity.slice(0, 3);
   };
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [messages, isTyping]);
 
   if (showLoading || !authReady) {
     return (
@@ -295,7 +340,7 @@ export default function Page() {
         </div>
         <div className="relative flex flex-col items-center gap-6">
           <div className="relative">
-            <div className="w-28 h-28 rounded-full border border-white/10 glass grid place-items-center shadow-glow">
+            <div className="w-28 h-28 rounded-full border border-white/10 glass grid place-items-center">
               <div className="w-16 h-16 rounded-full border-2 border-transparent border-t-primary animate-spin" />
             </div>
             <div className="absolute inset-0 animate-pulse pointer-events-none" />
@@ -320,14 +365,13 @@ export default function Page() {
 
   const profileCompleteness = calculateProfileCompleteness();
   const activeApplicationsCount = getActiveApplicationsCount();
-  const topProgramMatches = getTopProgramMatches();
   const recentActivityItems = getRecentActivityItems();
 
   return (
-    <DashboardLayout currentPage="home" pageTitle="Dashboard" user={user}>
-      <div className="space-y-6">
+    <DashboardLayout currentPage="home" pageTitle="Home" user={user}>
+      <div className="h-full flex flex-col">
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6 flex-shrink-0">
           <div 
             onClick={() => handleCardClick('applications')}
             className="glass rounded-xl p-4 border border-white/10 hover:border-primary/30 transition-all duration-300 cursor-pointer hover:scale-105"
@@ -385,23 +429,14 @@ export default function Page() {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           {/* Chat Interface */}
-          <div className="lg:col-span-2 glass rounded-xl p-4 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">AI Counselor</h2>
-              <select 
-                className="bg-black/30 border border-white/10 rounded px-3 py-1 text-white text-sm"
-                value={mode} 
-                onChange={(e) => setMode(e.target.value as ChatMode)}
-              >
-                <option value="counseling">Counseling</option>
-                <option value="application">Application</option>
-                <option value="interview">Interview</option>
-              </select>
+          <div className="lg:col-span-2 glass rounded-xl p-4 border border-white/10 flex flex-col min-h-[500px]">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-white">Theo - Your guidance counselor</h2>
             </div>
             
-            <div className="h-80 overflow-y-auto space-y-3 mb-4 scroll-smooth">
+            <div ref={chatRef} className="flex-1 overflow-y-auto space-y-3 mb-4 scroll-smooth scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
               {messages.map((m, i) => (
                 <div key={i} className={m.role === 'user' ? 'text-right' : ''}>
                   <div className={`inline-block px-3 py-2 rounded-lg max-w-xs lg:max-w-md ${
@@ -427,7 +462,7 @@ export default function Page() {
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-shrink-0">
               <input 
                 value={input} 
                 onChange={(e) => setInput(e.target.value)}
@@ -448,43 +483,6 @@ export default function Page() {
 
           {/* Right Sidebar */}
           <div className="space-y-6">
-            {/* Program Search Widget */}
-            <div className="glass rounded-xl p-4 border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-3">Quick Search</h3>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <input 
-                    className="flex-1 input text-sm" 
-                    placeholder="Search programs..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                  <button 
-                    onClick={handleSearch}
-                    className="px-3 py-2 rounded btn btn-secondary text-sm"
-                  >
-                    🔍
-                  </button>
-                </div>
-                <div className="text-xs text-white/60">Top matches:</div>
-                <div className="space-y-2">
-                  {topProgramMatches.length > 0 ? (
-                    topProgramMatches.map((program, index) => (
-                      <div key={index} className="p-2 bg-black/20 rounded border border-white/5 hover:border-primary/30 transition-colors cursor-pointer">
-                        <div className="font-medium text-white text-sm">{program.name}</div>
-                        <div className="text-xs text-white/60">{program.university}</div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="p-2 bg-black/20 rounded border border-white/5">
-                      <div className="text-xs text-white/60">No matches yet</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
             {/* Recent Activity */}
             <div className="glass rounded-xl p-4 border border-white/10">
               <h3 className="text-lg font-semibold text-white mb-3">Recent Activity</h3>

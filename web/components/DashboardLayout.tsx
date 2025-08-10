@@ -62,7 +62,7 @@ export default function DashboardLayout({ children, currentPage, pageTitle, user
         {/* Navigation */}
         <nav className="flex-1 p-2 space-y-1">
           {[
-            { id: 'home', label: 'Dashboard', icon: '🏠', path: '/' },
+            { id: 'home', label: 'Home', icon: '🏠', path: '/' },
             { id: 'profile', label: 'Profile', icon: '👤', path: '/profile' },
             { id: 'applications', label: 'Applications', icon: '📝', path: '/applications' },
             { id: 'search', label: 'Program Search', icon: '🔍', path: '/search' },
@@ -73,7 +73,7 @@ export default function DashboardLayout({ children, currentPage, pageTitle, user
               onClick={() => navigateTo(item.id)}
               className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 ${
                 item.id === currentPage
-                  ? 'bg-primary/20 text-primary border border-primary/30 shadow-glow'
+                  ? 'bg-primary/20 text-primary border border-primary/30'
                   : 'text-white/70 hover:text-white hover:bg-white/5'
               }`}
             >
@@ -122,8 +122,8 @@ export default function DashboardLayout({ children, currentPage, pageTitle, user
           </div>
         </div>
 
-        {/* Content Area - Scrollable */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content Area */}
+        <div className="flex-1 p-6 overflow-hidden">
           {children}
         </div>
       </div>

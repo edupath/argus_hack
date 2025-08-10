@@ -5,6 +5,7 @@ import { evaluation } from '../agent/tools/evaluation.tool';
 import { db } from '../database/config';
 
 const SubmitSchema = z.object({
+  applicationId: z.string(),
   studentId: z.string(),
   universityId: z.string(),
   profileSnapshot: z.any(),
@@ -30,9 +31,17 @@ export class ApplicationController {
     });
     const summary = await evaluation.execute({ payload }, {} as any);
     const verdict = (/\bAdmit\b/i.test(summary) ? 'admit' : /\bReject\b/i.test(summary) ? 'reject' : 'waitlist') as 'admit' | 'reject' | 'waitlist';
-    const app = await createApplication({ ...parsed, interviewResponses: parsed.interviewResponses });
-    await db.collection('applications').doc(app.id).set({ evaluation_summary: summary, verdict }, { merge: true });
-    return { ok: true, applicationId: app.id };
+    
+    // Update existing application with evaluation results
+    await db.collection('applications').doc(parsed.applicationId).update({
+      status: 'submitted',
+      interviewResponses: parsed.interviewResponses,
+      evaluation_summary: summary,
+      verdict: verdict,
+      updatedAt: new Date().toISOString()
+    });
+    
+    return { ok: true, applicationId: parsed.applicationId };
   }
 }
 

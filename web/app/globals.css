@@ -22,14 +22,52 @@ body {
 }
 
 .btn-primary {
-  @apply bg-primary text-black hover:shadow-glow hover:-translate-y-[1px];
+  @apply bg-primary text-black hover:-translate-y-[1px];
 }
 
 .btn-secondary {
-  @apply bg-secondary text-white hover:shadow-glow hover:-translate-y-[1px];
+  @apply bg-secondary text-white hover:-translate-y-[1px];
 }
 
 .input {
-  @apply bg-black/30 border border-white/10 rounded px-3 py-2 text-white placeholder-white/40 outline-none transition focus:border-primary focus:shadow-glow;
+  @apply bg-black/30 border border-white/10 rounded px-3 py-2 text-white placeholder-white/40 outline-none transition focus:border-primary;
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Force scrollbar to always show when content overflows */
+.chat-scroll::-webkit-scrollbar {
+  width: 8px;
+  display: block;
+}
+
+.chat-scroll::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 

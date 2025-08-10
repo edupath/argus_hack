@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, HttpException, HttpStatus } from '@nestjs/common';
 import { getApplicationsByUserId, createApplication, updateApplication, deleteApplication } from '../database/applications';
 
 @Controller('applications')
@@ -61,6 +61,24 @@ export class ApplicationsController {
         throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
       }
       throw new HttpException('Failed to update application', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  @Patch(':id')
+  async patchApplication(@Param('id') id: string, @Body() body: any) {
+    try {
+      console.log('[APPLICATIONS] Patching application:', id, body);
+      
+      const result = await updateApplication(id, body);
+      console.log('[APPLICATIONS] Application patched successfully:', result);
+      
+      return { success: true, application: result };
+    } catch (error: unknown) {
+      console.error('[APPLICATIONS] Error patching application:', error);
+      if (error instanceof Error) {
+        throw new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      }
+      throw new HttpException('Failed to patch application', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 

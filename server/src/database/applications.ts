@@ -10,22 +10,36 @@ export interface Application {
   deadline: string;
   createdAt: string;
   updatedAt: string;
-  profileSnapshot?: any;
-  transcript?: any;
-  interviewResponses?: { question: string; answer: string; }[];
-  evaluationSummary?: string;
-  verdict?: 'admit' | 'waitlist' | 'reject';
+  chatHistory?: any[];
+  isActive?: boolean;
+  interviewResponses?: Array<{ question: string; answer: string }>;
 }
+
+// Type for creating new applications
+export type CreateApplicationData = Omit<Application, 'id'>;
+
+// Type for submitting applications with evaluation data
+export type Submit = {
+  applicationId: string;
+  studentId: string;
+  universityId: string;
+  profileSnapshot: any;
+  transcript: any;
+  interviewResponses: Array<{ question: string; answer: string }>;
+};
 
 export async function getApplicationsByUserId(userId: string): Promise<Application[]> {
   try {
     const applicationsRef = db.collection('applications');
-    const snapshot = await applicationsRef.where('studentId', '==', userId).orderBy('createdAt', 'desc').get();
+    const snapshot = await applicationsRef.where('studentId', '==', userId).get();
     
     const applications: Application[] = [];
     snapshot.forEach(doc => {
       applications.push({ id: doc.id, ...doc.data() } as Application);
     });
+    
+    // Sort by createdAt in memory instead of in the query
+    applications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     console.log('[APPLICATIONS] Retrieved applications for user:', userId, applications.length);
     return applications;
@@ -35,25 +49,22 @@ export async function getApplicationsByUserId(userId: string): Promise<Applicati
   }
 }
 
-export async function createApplication(applicationData: Partial<Application>): Promise<Application> {
+export async function createApplication(applicationData: CreateApplicationData): Promise<Application> {
   try {
     const applicationsRef = db.collection('applications');
     
     const application: Application = {
       id: '',
-      studentId: applicationData.studentId || '',
-      universityId: applicationData.universityId || '',
-      programName: applicationData.programName || '',
-      universityName: applicationData.universityName || '',
+      studentId: applicationData.studentId,
+      universityId: applicationData.universityId,
+      programName: applicationData.programName,
+      universityName: applicationData.universityName,
       status: applicationData.status || 'draft',
-      deadline: applicationData.deadline || '',
+      deadline: applicationData.deadline,
       createdAt: applicationData.createdAt || new Date().toISOString(),
       updatedAt: applicationData.updatedAt || new Date().toISOString(),
-      profileSnapshot: applicationData.profileSnapshot,
-      transcript: applicationData.transcript,
-      interviewResponses: applicationData.interviewResponses || [],
-      evaluationSummary: applicationData.evaluationSummary,
-      verdict: applicationData.verdict
+      chatHistory: applicationData.chatHistory || [],
+      isActive: applicationData.isActive !== undefined ? applicationData.isActive : true
     };
 
     const docRef = await applicationsRef.add(application);
@@ -101,36 +112,5 @@ export async function deleteApplication(id: string): Promise<void> {
   }
 }
 
-export async function submitApplication(id: string, profileSnapshot: any, transcript: any, interviewResponses: { question: string; answer: string; }[]): Promise<Application> {
-  try {
-    const applicationRef = db.collection('applications').doc(id);
-    
-    const updateData = {
-      status: 'submitted',
-      profileSnapshot,
-      transcript,
-      interviewResponses,
-      updatedAt: new Date().toISOString()
-    };
-    
-    await applicationRef.update(updateData);
-    
-    const doc = await applicationRef.get();
-    const updatedApplication = { id: doc.id, ...doc.data() } as Application;
-    
-    console.log('[APPLICATIONS] Submitted application:', id);
-    return updatedApplication;
-  } catch (error) {
-    console.error('[APPLICATIONS] Error submitting application:', error);
-    throw error;
-  }
-}
 
-export type Submit = {
-  studentId: string;
-  universityId: string;
-  profileSnapshot: any;
-  transcript: any;
-  interviewResponses: { question: string; answer: string; }[];
-};
 

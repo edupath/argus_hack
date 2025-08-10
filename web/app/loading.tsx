@@ -7,7 +7,7 @@ export default function Loading() {
       </div>
       <div className="relative flex flex-col items-center gap-6">
         <div className="relative">
-          <div className="w-28 h-28 rounded-full border border-white/10 glass grid place-items-center shadow-glow">
+          <div className="w-28 h-28 rounded-full border border-white/10 glass grid place-items-center">
             <div className="w-16 h-16 rounded-full border-2 border-transparent border-t-primary animate-spin" />
           </div>
           <div className="absolute inset-0 animate-pulse pointer-events-none" />

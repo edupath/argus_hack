@@ -17,4 +17,5 @@ if (!apps.length) {
 }
 
 export const db = getFirestore();
+db.settings({ ignoreUndefinedProperties: true });
 
