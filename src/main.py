@@ -402,7 +402,6 @@ def get_user(
     return payload
 
 
-<<<<<<< HEAD
 @app.get("/requirements/{program_id}")
 def preview_requirements(
     program_id: str,
