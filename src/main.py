@@ -1,12 +1,5 @@
-<<<<<<< HEAD
-
-=======
-from fastapi.middleware.cors import CORSMiddleware
->>>>>>> origin/feat/assessments-english5
 from fastapi import FastAPI, Depends, HTTPException, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
-
-
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 from contextlib import asynccontextmanager
@@ -18,7 +11,7 @@ from sqlalchemy import text
 
 from .models import StudentProfile, ProgramMatch, ProgramRequirements
 from .db import engine, get_session, ensure_column, append_audit
-from .models_db import UserState, Message
+from .models_db import UserState, Message, PartnerJob, AssessmentResult
 from sqlmodel import SQLModel, Session, select
 from .services.requirements_adapter import get_provider
 from .services.requirements_lookup import (
@@ -28,11 +21,22 @@ from .services.requirements_lookup import (
 from .services.partner_handoff import enqueue_handoff, get_status as get_job_status, worker_send
 from .services.assessment import run_sample_assessment
 from .services.parse_profile import parse_profile
+from .services.assessments.english5 import (
+    get_questions as english5_questions,
+    score_answers as english5_score,
+)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure data directory exists and create tables
     Path("data").mkdir(parents=True, exist_ok=True)
+    SQLModel.metadata.create_all(engine)
+    # Tiny migration: add Message.reasoning if missing
+    with engine.begin() as conn:
+        ensure_column(conn, "message", "reasoning", "TEXT")
+    yield
+
 app = FastAPI(lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
@@ -46,14 +50,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-    SQLModel.metadata.create_all(engine)
-    # Tiny migration: add Message.reasoning if missing
-    with engine.begin() as conn:
-        ensure_column(conn, "message", "reasoning", "TEXT")
-    yield
-
-
-app = FastAPI(title="Agentic Educational Advisor", lifespan=lifespan)
 from fastapi.middleware.cors import CORSMiddleware as _MW
 app.add_middleware(
     _MW,
@@ -169,6 +165,23 @@ def chat(
     debug_q: Optional[str] = Query(default=None, alias="debug"),
     debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
 ):
+    # Assessment answers short-circuit: "answers: q1=A,q2=B,..."
+    txt = req.message.strip()
+    lowtxt = txt.lower()
+    if lowtxt.startswith("answers:"):
+        payload = txt[len("answers:") :].strip()
+        answers: Dict[str, str] = {}
+        for part in payload.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            if "=" in part:
+                k, v = part.split("=", 1)
+                answers[k.strip()] = v.strip().upper()
+        result = english5_score(answers)
+        cache = _ensure_user(req.user_id)
+        cache["english5_result"] = result  # type: ignore[index]
+        return {"reply": f"English5 score: {result['score']}/{result['total']}", "result": result}
     # Small in-memory cache of recent history (not source of truth)
     cache = _ensure_user(req.user_id)
     history: List[str] = cache["history"]  # type: ignore[assignment]
@@ -389,6 +402,7 @@ def get_user(
     return payload
 
 
+<<<<<<< HEAD
 @app.get("/requirements/{program_id}")
 def preview_requirements(
     program_id: str,
@@ -408,7 +422,16 @@ class RequirementsPreviewRequest(BaseModel):
 
 
 @app.post("/requirements/preview")
-def preview_requirements_post(payload: RequirementsPreviewRequest):
+def preview_requirements_post(payload: RequirementsPreviewRequest, use: Optional[str] = Query(default=None, alias="use")):
+    # Optional override to live provider; default to adapter
+    if use and use.strip().lower() == "live":
+        from .services.requirements_lookup_live import get_provider as gp  # type: ignore
+
+        try:
+            provider = gp("live")
+            return provider.preview(payload.program_name)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
     try:
         adapter = get_requirements_adapter("mock")
         data = adapter.get_requirements(payload.program_name)
@@ -454,3 +477,117 @@ def handoff_worker(job_id: int, session: Session = Depends(get_session)):
         return get_job_status(session, job_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="job not found")
+
+
+@app.get("/assessments/english5/questions")
+def english5_get_questions():
+    return english5_questions()
+
+
+class English5ScoreRequest(BaseModel):
+    answers: Dict[str, str]
+
+
+@app.post("/assessments/english5/score")
+def english5_post_score(req: English5ScoreRequest):
+    return english5_score(req.answers)
+
+
+class DemoSeedResponse(BaseModel):
+    user_id: str
+    assessment: Dict[str, int]
+    partner_job_id: int
+    status_url: str
+
+
+@app.post("/demo/seed")
+def demo_seed(session: Session = Depends(get_session)) -> DemoSeedResponse:
+    user_id = "demo1"
+    SQLModel.metadata.create_all(engine)
+    user = session.get(UserState, user_id) or UserState(id=user_id)
+    user.goals = "Become a software engineer"
+    user.constraints = "Part-time, budget under $1k"
+    user.preferences = "Online, US-based"
+    session.add(user)
+    session.commit()
+    prev = session.exec(select(AssessmentResult).where(AssessmentResult.user_id == user_id)).all()
+    for a in prev:
+        session.delete(a)
+    session.commit()
+    assess = AssessmentResult(user_id=user_id, assessment="logic-5q", score=4, max_score=5)
+    session.add(assess)
+    session.commit()
+    dossier = {
+        "profile": {"goals": user.goals, "constraints": user.constraints, "preferences": user.preferences},
+        "assessments": {"logic-5q": {"score": assess.score, "max_score": assess.max_score}},
+    }
+    jobs = session.exec(select(PartnerJob).where(PartnerJob.user_id == user_id)).all()
+    for j in jobs:
+        session.delete(j)
+    session.commit()
+    job = PartnerJob(user_id=user_id, program_name="State University — B.S. Computer Science", payload=json.dumps(dossier, ensure_ascii=False), status="queued")
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    return DemoSeedResponse(user_id=user_id, assessment={"score": assess.score, "total": assess.max_score}, partner_job_id=int(job.id or 0), status_url=f"/handoff/status/{int(job.id or 0)}")
+=======
+class DemoSeedResponse(BaseModel):
+    user_id: str
+    assessment: Dict[str, int]
+    partner_job_id: int
+    status_url: str
+
+
+@app.post("/demo/seed")
+def demo_seed(session: Session = Depends(get_session)) -> DemoSeedResponse:
+    user_id = "demo1"
+
+    # Ensure tables exist (safety for tests)
+    SQLModel.metadata.create_all(engine)
+
+    # Idempotent: upsert UserState
+    user = session.get(UserState, user_id)
+    if not user:
+        user = UserState(id=user_id)
+    user.goals = "Become a software engineer"
+    user.constraints = "Part-time, budget under $1k"
+    user.preferences = "Online, US-based"
+    session.add(user)
+    session.commit()
+
+    # Idempotent: replace latest assessment result for this user
+    prev_assess = session.exec(select(AssessmentResult).where(AssessmentResult.user_id == user_id)).all()
+    for a in prev_assess:
+        session.delete(a)
+    session.commit()
+    assess = AssessmentResult(user_id=user_id, assessment="logic-5q", score=4, max_score=5)
+    session.add(assess)
+    session.commit()
+
+    # Build payload dossier
+    dossier = {
+        "profile": {
+            "goals": user.goals,
+            "constraints": user.constraints,
+            "preferences": user.preferences,
+        },
+        "assessments": {"logic-5q": {"score": assess.score, "max_score": assess.max_score}},
+    }
+
+    # Idempotent: remove existing PartnerJobs for this user, then enqueue one
+    jobs = session.exec(select(PartnerJob).where(PartnerJob.user_id == user_id)).all()
+    for j in jobs:
+        session.delete(j)
+    session.commit()
+    job = PartnerJob(user_id=user_id, program_name="State University — B.S. Computer Science", payload=json.dumps(dossier, ensure_ascii=False), status="queued")
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+
+    return DemoSeedResponse(
+        user_id=user_id,
+        assessment={"score": assess.score, "total": assess.max_score},
+        partner_job_id=int(job.id or 0),
+        status_url=f"/handoff/status/{int(job.id or 0)}",
+    )
+>>>>>>> origin/feat/demo-seed

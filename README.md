@@ -98,6 +98,7 @@ Makefile             # install/run/test helpers
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
+<<<<<<< HEAD
 # Partner Handoff (stub)
 - Submit a dossier for a user and program (enqueues a job):
   - `curl -X POST http://localhost:8000/handoff/submit -H "content-type: application/json" -d '{"user_id":"u1","program_name":"State University — B.S. Computer Science"}'`
@@ -114,6 +115,11 @@ Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 - Chat shortcut:
   - If your goals mention humanities/communications/admissions essays, chat replies will suggest English5.
   - You can also send `answers: q1=B,q2=B,q3=C,q4=C,q5=B` to score via chat.
+=======
+# Demo Seed
+- Create a fully-populated demo flow (idempotent):
+  - `curl -X POST http://localhost:8000/demo/seed`
+>>>>>>> origin/feat/demo-seed
 
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.
