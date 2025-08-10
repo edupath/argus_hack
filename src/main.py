@@ -11,6 +11,7 @@ from .models import StudentProfile, ProgramMatch
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
+from .services.parse_profile import parse_profile
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -136,14 +137,36 @@ def chat(
     session.add(msg)
     session.commit()
 
-    # Update profile fields via heuristic
+    # Update profile fields via parser with confidences
     profile = StudentProfile(
         goals=user_state.goals,
         constraints=user_state.constraints,
         preferences=user_state.preferences,
     )
     before = (profile.goals, profile.constraints, profile.preferences)
-    _apply_heuristics(profile, req.message)
+    parsed = parse_profile(req.message)
+    low_conf: Dict[str, Dict[str, object]] = {}
+
+    def maybe_set(field: str) -> None:
+        nonlocal profile, user_state
+        info = parsed[field]
+        val = info.get("value")
+        conf = float(info.get("confidence", 0.0))
+        src = info.get("source")
+        if not val:
+            return
+        # Accept high confidence (prefix) always, allowing overwrite
+        if conf >= 0.9:
+            setattr(profile, field, str(val))
+        # Accept medium confidence if field empty
+        elif conf >= 0.6 and getattr(profile, field) in (None, ""):
+            setattr(profile, field, str(val))
+        else:
+            low_conf[field] = {"value": val, "confidence": conf}
+
+    for fld in ("goals", "constraints", "preferences"):
+        maybe_set(fld)
+
     after = (profile.goals, profile.constraints, profile.preferences)
     if after != before:
         user_state.goals = profile.goals
@@ -171,10 +194,19 @@ def chat(
     if not debug_on and debug_h is not None and str(debug_h).lower() == "true":
         debug_on = True
 
-    # If anything missing, ask question
-    if missing:
-        q = _question_for(missing[0])
+    # If anything missing or low-confidence candidates exist, ask targeted question
+    if missing or low_conf:
+        target = missing[0] if missing else list(low_conf.keys())[0]
+        q = _question_for(target)
         reasoning["next_question"] = q
+        if target in low_conf:
+            lc = low_conf[target]
+            reasoning["why_asked"] = {
+                "field": target,
+                "reason": "low confidence",
+                "confidence": lc.get("confidence"),
+                "extracted": lc.get("value"),
+            }
         # Store reasoning on message and audit
         msg.reasoning = json.dumps(reasoning, ensure_ascii=False)
         session.add(msg)
