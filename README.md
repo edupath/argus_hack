@@ -89,5 +89,14 @@ Makefile             # install/run/test helpers
 
 Note: Do not commit `.venv`, `__pycache__`, or `.env`.
 
+# Requirements Provider
+- By default, requirements preview uses a mock provider.
+- To enable the live provider (scrapes a known public program page), set:
+  - `REQUIREMENTS_PROVIDER=live`
+- Preview endpoint:
+  - `curl -X POST http://localhost:8000/requirements/preview -H 'content-type: application/json' -d '{"program_name":"State University — B.S. Computer Science"}'`
+- Override per call:
+  - `curl -X POST 'http://localhost:8000/requirements/preview?use=live' -H 'content-type: application/json' -d '{"program_name":"State University — B.S. Computer Science"}'`
+
 # License & Attribution
 Internal prototype. Do not commit secrets. Follow AGENTS.md rules.

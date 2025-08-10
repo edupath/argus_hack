@@ -11,6 +11,7 @@ from .models import StudentProfile, ProgramMatch
 from .db import engine, get_session, ensure_column, append_audit
 from .models_db import UserState, Message
 from sqlmodel import SQLModel, Session, select
+from .services.requirements_lookup import get_provider
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -245,3 +246,19 @@ def get_user(
                 item["reasoning"] = m.reasoning
         payload["history"].append(item)
     return payload
+
+
+class RequirementsPreviewRequest(BaseModel):
+    program_name: str
+
+
+@app.post("/requirements/preview")
+def requirements_preview(
+    req: RequirementsPreviewRequest,
+    use: Optional[str] = Query(default=None, alias="use"),
+):
+    provider = get_provider(use)
+    try:
+        return provider.preview(req.program_name)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"provider error: {e}")
