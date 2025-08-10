@@ -8,6 +8,7 @@ import { ActivityController } from './controllers/activity.controller';
 import { ProgramMatchesController } from './controllers/program-matches.controller';
 import { PendingQuestionsController } from './controllers/pending-questions.controller';
 import { CounselingHistoryController } from './controllers/counseling-history.controller';
+import { TranscriptController } from './controllers/transcript.controller';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CounselingHistoryController } from './controllers/counseling-history.co
     ProgramMatchesController,
     PendingQuestionsController,
     CounselingHistoryController,
+    TranscriptController,
   ],
 })
 export class AppModule {}

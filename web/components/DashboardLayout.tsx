@@ -123,7 +123,7 @@ export default function DashboardLayout({ children, currentPage, pageTitle, user
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 p-6 overflow-hidden">
+        <div className="flex-1 p-6 overflow-y-auto">
           {children}
         </div>
       </div>

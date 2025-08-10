@@ -6,6 +6,7 @@ const MessageSchema = z.object({ role: z.enum(['user', 'assistant']), content: z
 const ChatSchema = z.object({ 
   mode: z.enum(['counseling', 'application']), 
   messages: z.array(MessageSchema),
+  userId: z.string().optional(),
   applicationId: z.string().optional(),
   university: z.string().optional(),
   program: z.string().optional()
@@ -16,19 +17,10 @@ export class ChatController {
   @Post()
   async chat(@Body() body: unknown) {
     console.log('[CHAT] incoming body', body);
-    const { mode, messages, applicationId, university, program } = ChatSchema.parse(body);
-    console.log('[CHAT] parsed', { mode, count: messages.length, applicationId, university, program });
+    const { mode, messages, userId, applicationId, university, program } = ChatSchema.parse(body);
+    console.log('[CHAT] parsed', { mode, count: messages.length, userId, applicationId, university, program });
     
-    // Add context for application mode
-    let enhancedMessages = messages;
-    if (mode === 'application' && university && program) {
-      enhancedMessages = [
-        { role: 'system' as any, content: `You are helping the student apply to ${program} at ${university}. Collect their information systematically and ask relevant questions.` },
-        ...messages
-      ];
-    }
-    
-    const response = await agent(enhancedMessages as any, mode);
+    const response = await agent(messages as any, mode, university, program, userId);
     console.log('[CHAT] agent response', response);
     
     // Check if application is complete (for application mode)

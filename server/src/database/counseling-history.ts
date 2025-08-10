@@ -16,9 +16,10 @@ export async function getCounselingHistory(userId: string): Promise<CounselingHi
     } else {
       return null;
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error getting counseling history:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to get counseling history: ${message}`);
   }
 }
 
@@ -41,8 +42,9 @@ export async function storeCounselingHistory(data: CounselingHistory): Promise<C
     }
     
     return data;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error storing counseling history:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to store counseling history: ${message}`);
   }
 } 

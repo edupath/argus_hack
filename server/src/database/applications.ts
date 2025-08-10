@@ -43,9 +43,10 @@ export async function getApplicationsByUserId(userId: string): Promise<Applicati
     
     console.log('[APPLICATIONS] Retrieved applications for user:', userId, applications.length);
     return applications;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[APPLICATIONS] Error getting applications:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to get applications: ${message}`);
   }
 }
 
@@ -72,9 +73,10 @@ export async function createApplication(applicationData: CreateApplicationData):
     
     console.log('[APPLICATIONS] Created application:', docRef.id);
     return createdApplication;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[APPLICATIONS] Error creating application:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to create application: ${message}`);
   }
 }
 
@@ -94,9 +96,10 @@ export async function updateApplication(id: string, updates: Partial<Application
     
     console.log('[APPLICATIONS] Updated application:', id);
     return updatedApplication;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[APPLICATIONS] Error updating application:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to update application: ${message}`);
   }
 }
 
@@ -106,9 +109,10 @@ export async function deleteApplication(id: string): Promise<void> {
     await applicationRef.delete();
     
     console.log('[APPLICATIONS] Deleted application:', id);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[APPLICATIONS] Error deleting application:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to delete application: ${message}`);
   }
 }
 

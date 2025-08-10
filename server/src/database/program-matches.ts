@@ -24,9 +24,10 @@ export async function getProgramMatchesByUserId(userId: string): Promise<Program
     
     console.log('[PROGRAM-MATCHES] Retrieved program matches for user:', userId, matches.length);
     return matches;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PROGRAM-MATCHES] Error getting program matches:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to get program matches: ${message}`);
   }
 }
 
@@ -81,9 +82,10 @@ export async function generateProgramMatches(userId: string): Promise<ProgramMat
 
     console.log('[PROGRAM-MATCHES] Generated program matches for user:', userId, sampleMatches.length);
     return sampleMatches;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PROGRAM-MATCHES] Error generating program matches:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to generate program matches: ${message}`);
   }
 }
 
@@ -107,8 +109,9 @@ export async function createProgramMatch(matchData: Partial<ProgramMatch>): Prom
     
     console.log('[PROGRAM-MATCHES] Created program match:', docRef.id);
     return createdMatch;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PROGRAM-MATCHES] Error creating program match:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to create program match: ${message}`);
   }
 } 

@@ -181,6 +181,7 @@ export default function ApplicationsPage() {
         body: JSON.stringify({ 
           mode: 'application', 
           messages: next,
+          userId: user.uid,
           applicationId: currentApplication.id,
           university: currentApplication.universityName,
           program: currentApplication.programName

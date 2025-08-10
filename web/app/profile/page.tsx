@@ -7,18 +7,58 @@ import DashboardLayout from '../../components/DashboardLayout';
 
 interface ProfileData {
   personal: {
-    fullName: string;
+    firstName: string;
+    middleName: string;
+    lastName: string;
+    dateOfBirth: string;
     email: string;
     phone: string;
-    country: string;
-    dateOfBirth: string;
+    mailingAddress: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+      country: string;
+    };
+    gender: string;
+    pronouns: string;
+    birthCountry: string;
+    citizenshipStatus: string;
   };
   academic: {
     currentGPA: string;
+    gpaScale: number;
     targetDegree: string;
     fieldOfInterest: string;
     educationLevel: string;
-    testScores: any[];
+    testScores: {
+      sat: {
+        total: number;
+        math: number;
+        reading: number;
+        writing: number;
+      };
+      act: {
+        composite: number;
+        math: number;
+        english: number;
+        reading: number;
+        science: number;
+      };
+      toefl: number;
+      ielts: number;
+      gre: {
+        verbal: number;
+        quantitative: number;
+        analytical: number;
+      };
+      gmat: number;
+    };
+    transcript: {
+      fileUrl: string;
+      fileName: string;
+      uploadedAt: string;
+    };
   };
 }
 
@@ -31,26 +71,59 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileData>({
     personal: {
-      fullName: '',
+      firstName: '',
+      middleName: '',
+      lastName: '',
+      dateOfBirth: '',
       email: '',
       phone: '',
-      country: '',
-      dateOfBirth: ''
+      mailingAddress: {
+        street: '',
+        city: '',
+        state: '',
+        zipCode: '',
+        country: ''
+      },
+      gender: '',
+      pronouns: '',
+      birthCountry: '',
+      citizenshipStatus: ''
     },
     academic: {
       currentGPA: '',
+      gpaScale: 4.0,
       targetDegree: '',
       fieldOfInterest: '',
       educationLevel: '',
-      testScores: []
+      testScores: {
+        sat: { total: 0, math: 0, reading: 0, writing: 0 },
+        act: { composite: 0, math: 0, english: 0, reading: 0, science: 0 },
+        toefl: 0,
+        ielts: 0,
+        gre: { verbal: 0, quantitative: 0, analytical: 0 },
+        gmat: 0
+      },
+      transcript: {
+        fileUrl: '',
+        fileName: '',
+        uploadedAt: ''
+      }
     }
   });
 
   // Load profile data
   const loadProfile = async (userId: string) => {
     try {
+      console.log('[FRONTEND] loadProfile called with userId:', userId);
+      console.log('[FRONTEND] About to fetch from:', `/api/profile/${userId}?t=${Date.now()}`);
       setLoading(true);
-      const response = await fetch(`/api/profile/${userId}`);
+      const response = await fetch(`/api/profile/${userId}?t=${Date.now()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      });
       console.log('Profile API response status:', response.status);
       
       if (response.ok) {
@@ -59,20 +132,47 @@ export default function ProfilePage() {
         
         if (data.success && data.profile) {
           console.log('Setting profile with data:', data.profile);
+          console.log('Profile structure:', JSON.stringify(data.profile, null, 2));
+          console.log('[FRONTEND] testScores from API:', JSON.stringify(data.profile.profile?.academic?.testScores, null, 2));
           setProfile({
             personal: {
-              fullName: data.profile.profile?.personal?.fullName || '',
+              firstName: data.profile.profile?.personal?.firstName || '',
+              middleName: data.profile.profile?.personal?.middleName || '',
+              lastName: data.profile.profile?.personal?.lastName || '',
+              dateOfBirth: data.profile.profile?.personal?.dateOfBirth || '',
               email: data.profile.profile?.personal?.email || '',
               phone: data.profile.profile?.personal?.phone || '',
-              country: data.profile.profile?.personal?.country || '',
-              dateOfBirth: data.profile.profile?.personal?.dateOfBirth || ''
+              mailingAddress: {
+                street: data.profile.profile?.personal?.mailingAddress?.street || '',
+                city: data.profile.profile?.personal?.mailingAddress?.city || '',
+                state: data.profile.profile?.personal?.mailingAddress?.state || '',
+                zipCode: data.profile.profile?.personal?.mailingAddress?.zipCode || '',
+                country: data.profile.profile?.personal?.mailingAddress?.country || ''
+              },
+              gender: data.profile.profile?.personal?.gender || '',
+              pronouns: data.profile.profile?.personal?.pronouns || '',
+              birthCountry: data.profile.profile?.personal?.birthCountry || '',
+              citizenshipStatus: data.profile.profile?.personal?.citizenshipStatus || ''
             },
             academic: {
               currentGPA: data.profile.profile?.academic?.currentGPA || '',
+              gpaScale: data.profile.profile?.academic?.gpaScale || 4.0,
               targetDegree: data.profile.profile?.academic?.targetDegree || '',
               fieldOfInterest: data.profile.profile?.academic?.fieldOfInterest || '',
               educationLevel: data.profile.profile?.academic?.educationLevel || '',
-              testScores: data.profile.profile?.academic?.testScores || []
+              testScores: data.profile.profile?.academic?.testScores || {
+                sat: { total: 0, math: 0, reading: 0, writing: 0 },
+                act: { composite: 0, math: 0, english: 0, reading: 0, science: 0 },
+                toefl: 0,
+                ielts: 0,
+                gre: { verbal: 0, quantitative: 0, analytical: 0 },
+                gmat: 0
+              },
+              transcript: data.profile.profile?.academic?.transcript || {
+                fileUrl: '',
+                fileName: '',
+                uploadedAt: ''
+              }
             }
           });
         }
@@ -132,12 +232,25 @@ export default function ProfilePage() {
   };
 
   // Handle form field changes
-  const handlePersonalChange = (field: keyof ProfileData['personal'], value: string) => {
+  const handlePersonalChange = (field: keyof ProfileData['personal'], value: string | ProfileData['personal']['mailingAddress']) => {
     setProfile(prev => ({
       ...prev,
       personal: {
         ...prev.personal,
         [field]: value
+      }
+    }));
+  };
+
+  const handleMailingAddressChange = (field: keyof ProfileData['personal']['mailingAddress'], value: string) => {
+    setProfile(prev => ({
+      ...prev,
+      personal: {
+        ...prev.personal,
+        mailingAddress: {
+          ...prev.personal.mailingAddress,
+          [field]: value
+        }
       }
     }));
   };
@@ -176,9 +289,12 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <DashboardLayout currentPage="profile" pageTitle="Profile" user={user}>
-        <div className="glass rounded-xl p-6 border border-white/10">
-          <div className="flex items-center justify-center h-32">
-            <div className="text-white">Loading profile...</div>
+        <div className="space-y-6">
+          <h2 className="text-2xl font-semibold text-white">Profile</h2>
+          <div className="glass rounded-xl p-6 border border-white/10">
+            <div className="flex items-center justify-center h-32">
+              <div className="text-white">Loading profile...</div>
+            </div>
           </div>
         </div>
       </DashboardLayout>
@@ -187,19 +303,50 @@ export default function ProfilePage() {
 
   return (
     <DashboardLayout currentPage="profile" pageTitle="Profile" user={user}>
-      <div className="glass rounded-xl p-6 border border-white/10">
-        <h2 className="text-2xl font-semibold text-white mb-6">Profile</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-6">
+        <h2 className="text-2xl font-semibold text-white">Profile</h2>
+        
+        <div className="glass rounded-xl p-6 border border-white/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-medium text-white mb-4">Personal Information</h3>
             <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">First Name</label>
+                  <input 
+                    className="w-full input" 
+                    placeholder="First name"
+                    value={profile.personal.firstName}
+                    onChange={(e) => handlePersonalChange('firstName', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Middle Name</label>
+                  <input 
+                    className="w-full input" 
+                    placeholder="Middle name"
+                    value={profile.personal.middleName}
+                    onChange={(e) => handlePersonalChange('middleName', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Last Name</label>
+                  <input 
+                    className="w-full input" 
+                    placeholder="Last name"
+                    value={profile.personal.lastName}
+                    onChange={(e) => handlePersonalChange('lastName', e.target.value)}
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm text-white/80 mb-2">Full Name</label>
+                <label className="block text-sm text-white/80 mb-2">Date of Birth</label>
                 <input 
+                  type="date"
                   className="w-full input" 
-                  placeholder="Enter your full name"
-                  value={profile.personal.fullName}
-                  onChange={(e) => handlePersonalChange('fullName', e.target.value)}
+                  value={profile.personal.dateOfBirth}
+                  onChange={(e) => handlePersonalChange('dateOfBirth', e.target.value)}
                 />
               </div>
               <div>
@@ -219,14 +366,109 @@ export default function ProfilePage() {
                   onChange={(e) => handlePersonalChange('phone', e.target.value)}
                 />
               </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Gender</label>
+                  <select 
+                    className="w-full input"
+                    value={profile.personal.gender}
+                    onChange={(e) => handlePersonalChange('gender', e.target.value)}
+                  >
+                    <option value="">Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Non-binary">Non-binary</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Pronouns</label>
+                  <input 
+                    className="w-full input" 
+                    placeholder="e.g., He/Him, She/Her"
+                    value={profile.personal.pronouns}
+                    onChange={(e) => handlePersonalChange('pronouns', e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Birth Country</label>
+                  <input 
+                    className="w-full input" 
+                    placeholder="Country of birth"
+                    value={profile.personal.birthCountry}
+                    onChange={(e) => handlePersonalChange('birthCountry', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-white/80 mb-2">Citizenship Status</label>
+                  <select 
+                    className="w-full input"
+                    value={profile.personal.citizenshipStatus}
+                    onChange={(e) => handlePersonalChange('citizenshipStatus', e.target.value)}
+                  >
+                    <option value="">Select status</option>
+                    <option value="US Citizen">US Citizen</option>
+                    <option value="Permanent Resident">Permanent Resident</option>
+                    <option value="International Student">International Student</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+              
               <div>
-                <label className="block text-sm text-white/80 mb-2">Country</label>
-                <input 
-                  className="w-full input" 
-                  placeholder="Enter your country"
-                  value={profile.personal.country}
-                  onChange={(e) => handlePersonalChange('country', e.target.value)}
-                />
+                <h4 className="text-md font-medium text-white/90 mb-3">Mailing Address</h4>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm text-white/80 mb-2">Street Address</label>
+                    <input 
+                      className="w-full input" 
+                      placeholder="Enter street address"
+                      value={profile.personal.mailingAddress.street}
+                      onChange={(e) => handleMailingAddressChange('street', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-sm text-white/80 mb-2">City</label>
+                      <input 
+                        className="w-full input" 
+                        placeholder="City"
+                        value={profile.personal.mailingAddress.city}
+                        onChange={(e) => handleMailingAddressChange('city', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-white/80 mb-2">State</label>
+                      <input 
+                        className="w-full input" 
+                        placeholder="State"
+                        value={profile.personal.mailingAddress.state}
+                        onChange={(e) => handleMailingAddressChange('state', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-white/80 mb-2">ZIP Code</label>
+                      <input 
+                        className="w-full input" 
+                        placeholder="ZIP Code"
+                        value={profile.personal.mailingAddress.zipCode}
+                        onChange={(e) => handleMailingAddressChange('zipCode', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-white/80 mb-2">Country</label>
+                    <input 
+                      className="w-full input" 
+                      placeholder="Country"
+                      value={profile.personal.mailingAddress.country}
+                      onChange={(e) => handleMailingAddressChange('country', e.target.value)}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -281,14 +523,16 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+        
         <div className="mt-6 flex justify-end">
-          <button 
-            className={`px-6 py-2 rounded btn ${saving ? 'btn-disabled' : 'btn-primary'}`}
-            onClick={saveProfile}
-            disabled={saving}
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+            <button 
+              className={`px-6 py-2 rounded btn ${saving ? 'btn-disabled' : 'btn-primary'}`}
+              onClick={saveProfile}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </div>
       </div>
     </DashboardLayout>

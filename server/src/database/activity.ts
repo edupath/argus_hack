@@ -22,9 +22,10 @@ export async function getRecentActivityByUserId(userId: string): Promise<RecentA
     
     console.log('[ACTIVITY] Retrieved recent activity for user:', userId, activities.length);
     return activities;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[ACTIVITY] Error getting recent activity:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to get recent activity: ${message}`);
   }
 }
 
@@ -47,9 +48,10 @@ export async function createActivity(activityData: Partial<RecentActivity>): Pro
     
     console.log('[ACTIVITY] Created activity:', docRef.id);
     return createdActivity;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[ACTIVITY] Error creating activity:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to create activity: ${message}`);
   }
 }
 

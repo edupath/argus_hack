@@ -6,8 +6,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { userId: string } }
 ) {
-  console.log('API Route: GET /api/profile/[userId] called with userId:', params.userId);
-  console.log('Backend URL:', BACKEND_URL);
+  console.log('🚀 [FRONTEND API] ==========================================');
+  console.log('🚀 [FRONTEND API] GET /api/profile/[userId] called with userId:', params.userId);
+  console.log('🚀 [FRONTEND API] Backend URL:', BACKEND_URL);
+  console.log('🚀 [FRONTEND API] Request URL:', request.url);
+  console.log('🚀 [FRONTEND API] ==========================================');
   
   try {
     const url = `${BACKEND_URL}/api/profile/${params.userId}`;
@@ -20,9 +23,9 @@ export async function GET(
       },
     });
 
-    console.log('Backend response status:', response.status);
+    console.log('🚀 [FRONTEND API] Backend response status:', response.status);
     const data = await response.json();
-    console.log('Backend response data:', data);
+    console.log('🚀 [FRONTEND API] Backend response data:', data);
     
     if (response.ok) {
       return NextResponse.json(data);
@@ -32,10 +35,11 @@ export async function GET(
         { status: response.status }
       );
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching profile:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Internal server error: ${message}` },
       { status: 500 }
     );
   }
@@ -74,10 +78,11 @@ export async function PUT(
         { status: response.status }
       );
     }
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error updating profile:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Internal server error: ${message}` },
       { status: 500 }
     );
   }

@@ -32,7 +32,7 @@ export class ProfileController {
   @Get(':userId')
   async getProfile(@Param('userId') userId: string) {
     try {
-      console.log('[PROFILE] Getting profile for user:', userId);
+      console.log('🔥 [BACKEND API] GET /api/profile/:userId called with userId:', userId);
       
       const profile = await getUserProfile(userId);
       

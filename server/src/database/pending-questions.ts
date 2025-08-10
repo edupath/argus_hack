@@ -30,9 +30,10 @@ export async function getPendingQuestionsByUserId(userId: string): Promise<Pendi
     
     console.log('[PENDING-QUESTIONS] Retrieved pending questions for user:', userId, questions.length);
     return questions;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PENDING-QUESTIONS] Error getting pending questions:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to get pending questions: ${message}`);
   }
 }
 
@@ -57,9 +58,10 @@ export async function createPendingQuestion(questionData: Partial<PendingQuestio
     
     console.log('[PENDING-QUESTIONS] Created pending question:', docRef.id);
     return createdQuestion;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PENDING-QUESTIONS] Error creating pending question:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to create pending question: ${message}`);
   }
 }
 
@@ -73,9 +75,10 @@ export async function answerQuestion(questionId: string, answer: string): Promis
     });
     
     console.log('[PENDING-QUESTIONS] Answered question:', questionId);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PENDING-QUESTIONS] Error answering question:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to answer question: ${message}`);
   }
 }
 
@@ -121,8 +124,9 @@ export async function generatePendingQuestions(userId: string, applicationId?: s
 
     console.log('[PENDING-QUESTIONS] Generated pending questions for user:', userId, sampleQuestions.length);
     return sampleQuestions;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[PENDING-QUESTIONS] Error generating pending questions:', error);
-    throw error;
+    const message = error instanceof Error ? error.message : 'Unknown error occurred';
+    throw new Error(`Failed to generate pending questions: ${message}`);
   }
 } 
