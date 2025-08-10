@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException, Header, Query
+from __future__ import annotations
+from fastapi import FastAPI, Depends, HTTPException, Header, Query, APIRouter, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, List, Optional
@@ -158,13 +159,20 @@ def _mock_matches(profile: StudentProfile) -> List[ProgramMatch]:
     ]
 
 
-@app.post("/chat")
-def chat(
+def _to_dict(m):
+    if hasattr(m, "model_dump"):
+        return m.model_dump()
+    if hasattr(m, "dict"):
+        return m.dict()
+    return m
+
+
+def _handle_chat(
     req: ChatRequest,
-    session: Session = Depends(get_session),
-    debug_q: Optional[str] = Query(default=None, alias="debug"),
-    debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
-):
+    debug: Optional[str],
+    x_debug: Optional[str],
+    session: Session,
+) -> dict:
     # Assessment answers short-circuit: "answers: q1=A,q2=B,..."
     txt = req.message.strip()
     lowtxt = txt.lower()
@@ -197,6 +205,7 @@ def chat(
     # Ensure migration safety at request time (idempotent)
     with engine.begin() as conn:
         ensure_column(conn, "message", "reasoning", "TEXT")
+        ensure_column(conn, "message", "reasoning", "TEXT")
 
     # Persist incoming message (reasoning to be added later)
     msg = Message(user_id=req.user_id, text=req.message)
@@ -228,7 +237,7 @@ def chat(
         elif conf >= 0.6 and getattr(profile, field) in (None, ""):
             setattr(profile, field, str(val))
         else:
-            low_conf[field] = {"value": val, "confidence": conf}
+            low_conf[field] = {"value": val, "confidence": conf, "source": src}
 
     for fld in ("goals", "constraints", "preferences"):
         maybe_set(fld)
@@ -255,9 +264,9 @@ def chat(
 
     # Determine debug flag
     debug_on = False
-    if debug_q is not None and str(debug_q).lower() in ("1", "true"):  # type: ignore[arg-type]
+    if debug is not None and str(debug).lower() in ("1", "true"):  # type: ignore[arg-type]
         debug_on = True
-    if not debug_on and debug_h is not None and str(debug_h).lower() == "true":
+    if not debug_on and x_debug is not None and str(x_debug).lower() == "true":
         debug_on = True
 
     # If anything missing or low-confidence candidates exist, ask targeted question
@@ -272,6 +281,7 @@ def chat(
                 "reason": "low confidence",
                 "confidence": lc.get("confidence"),
                 "extracted": lc.get("value"),
+                "source": lc.get("source"),
             }
         # Store reasoning on message and audit
         msg.reasoning = json.dumps(reasoning, ensure_ascii=False)
@@ -340,7 +350,7 @@ def chat(
     except Exception:
         hint_name = None
 
-    # Build reply with optional preview hint and submission hint
+    # Build reply with optional preview hint and submission/assessment hints
     reply_text = summary
     if hint_name:
         reply_text += f"\n\nI can preview requirements for '{hint_name}'—say 'preview {hint_name}' to see them."
@@ -353,12 +363,31 @@ def chat(
         state_entry["assessment"] = assessment
         submission_hint = "Say 'submit <program name>' to send your application."
 
-    resp = {"reply": reply_text, "matches": [m.model_dump() for m in matches]}
-    if submission_hint:
+    # English5 suggestion based on goals
+    english_hint = None
+    gtxt = (profile.goals or "").lower()
+    if any(k in gtxt for k in ("humanities", "communication", "essay")):
+        english_hint = "Consider the English5 assessment: GET /assessments/english5/questions"
+
+    resp = {"reply": reply_text, "matches": [_to_dict(m) for m in matches]}
+    if english_hint and submission_hint:
+        resp["hint"] = f"{english_hint}. {submission_hint}"
+    elif english_hint:
+        resp["hint"] = english_hint
+    elif submission_hint:
         resp["hint"] = submission_hint
     if debug_on:
         resp["reasoning"] = reasoning
     return resp
+
+@app.post("/chat")
+def chat(
+    req: ChatRequest,
+    session: Session = Depends(get_session),
+    debug_q: Optional[str] = Query(default=None, alias="debug"),
+    debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
+):
+    return _handle_chat(req, debug_q, debug_h, session)
 
 
 @app.get("/users/{user_id}")
@@ -529,3 +558,72 @@ def demo_seed(session: Session = Depends(get_session)) -> DemoSeedResponse:
     session.commit()
     session.refresh(job)
     return DemoSeedResponse(user_id=user_id, assessment={"score": assess.score, "total": assess.max_score}, partner_job_id=int(job.id or 0), status_url=f"/handoff/status/{int(job.id or 0)}")
+# --- API shim for UI expecting /api/* paths ---
+from fastapi import APIRouter
+
+def register_api_shim(app: FastAPI) -> None:
+    api = APIRouter(prefix="/api")
+
+    @api.post("/chat")
+    def api_chat(
+        payload: dict = Body(...),
+        session: Session = Depends(get_session),
+        debug_q: Optional[str] = Query(default=None, alias="debug"),
+        debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
+    ):
+        # Accept multiple frontend shapes
+        uid = (
+            payload.get("user_id")
+            or payload.get("userId")
+            or payload.get("uid")
+            or "demo"
+        )
+        msg = payload.get("message") or payload.get("text") or payload.get("prompt")
+        if not msg:
+            raise HTTPException(status_code=422, detail="message/text/prompt is required")
+
+        req = ChatRequest(user_id=uid, message=msg)
+        return _handle_chat(req, debug_q, debug_h, session)
+
+    @api.get("/profile/{user_id}")
+    def api_profile(
+        user_id: str,
+        session: Session = Depends(get_session),
+        debug_q: Optional[str] = Query(default=None, alias="debug"),
+        debug_h: Optional[str] = Header(default=None, alias="X-Debug"),
+    ):
+        # Delegate to main handler with DI-provided session; if missing, return empty profile
+        try:
+            return get_user(user_id, session=session, debug_q=debug_q, debug_h=debug_h)
+        except HTTPException as e:
+            if e.status_code == 404:
+                return {"user": {"id": user_id, "goals": None, "constraints": None, "preferences": None}, "history": []}
+            raise
+
+    @api.get("/applications")
+    def api_applications(userId: str):
+        return {"userId": userId, "applications": []}
+
+    @api.get("/activity")
+    def api_activity(userId: str):
+        return {"userId": userId, "activity": []}
+
+    @api.get("/program-matches")
+    def api_program_matches(userId: str):
+        entry = _ensure_user(userId)
+        profile: StudentProfile = entry["profile"]  # type: ignore
+        matches = _mock_matches(profile) if "_mock_matches" in globals() else []
+        return {"userId": userId, "matches": [_to_dict(m) for m in matches]}
+
+    @api.get("/pending-questions")
+    def api_pending_questions(userId: str):
+        entry = _ensure_user(userId)
+        profile: StudentProfile = entry["profile"]  # type: ignore
+        missing = _missing_fields(profile)
+        return {"userId": userId, "questions": [_question_for(f) for f in missing]}
+
+    app.include_router(api)
+
+# Call this ONCE at the very end of the file, after all route handlers are defined:
+register_api_shim(app)
+# --- end API shim ---
